@@ -1,0 +1,9 @@
+SCAN QUALITY ANALYSIS
+==================================================
+
+Total Points: 18,243
+Bounding Box: 1661.8 x 477.2 x 1300.0 mm
+Volume: 1030924009.0 mm³
+Density: 0.000018 points/mm³
+Rating: VERY SPARSE
+Recommendation: Need 3-5x more points (50,000+)

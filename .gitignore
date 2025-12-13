@@ -1,0 +1,108 @@
+# Point Cloud Detection Scanner - Git Ignore File
+
+# ========== Python ==========
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ========== Scan Data (Large Files) ==========
+# Point clouds and meshes
+*.ply
+*.obj
+*.npz
+scanning/data/point_clouds/*.ply
+scanning/data/point_clouds/*.obj
+scanning/data/point_clouds/*.npz
+projects/*/point_clouds/*.ply
+projects/*/point_clouds/*.obj
+projects/*/point_clouds/*.npz
+
+# Raw scan images
+*.jpg
+*.jpeg
+*.png
+scanning/calibration_capture_*.jpg
+calibration_debug.jpg
+
+# Large numpy arrays
+*.npy
+sphere_matrix.npy
+
+# ========== Calibration Data (User-Specific) ==========
+# Keep .npz files out of git - they're camera-specific
+camera_calibration*.npz
+calibration/camera_calibration*.npz
+scanning/camera_calibration*.npz
+data/camera_calibration.npz
+
+# Camera fingerprints (user-specific)
+*_camera.json
+
+# ========== AI Models Cache ==========
+# MiDaS model downloads (large, auto-downloaded)
+.cache/
+torch/hub/checkpoints/
+
+# ========== Test Output ==========
+tests/.coverage
+tests/htmlcov/
+tests/.pytest_cache/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# ========== Analysis Reports ==========
+scanning/analysis/*.json
+scanning/scanning/analysis/*.json
+scanning/scanning/analysis/*.txt
+
+# ========== IDE / Editor ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ========== OS ==========
+Thumbs.db
+desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ========== Temporary Files ==========
+*.tmp
+*.temp
+*.log
+*.bak
+*.backup
+
+# ========== Keep Essential Files ==========
+# Force-include README and requirements
+!README.md
+!requirements.txt
+!scanning/README.md
+
+# Keep one example calibration for reference
+!data/camera_calibration_EXAMPLE.npz

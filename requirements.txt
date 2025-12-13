@@ -1,0 +1,39 @@
+# Point Cloud Detection Scanner - Python Dependencies
+# Bosch GLM 42 635nm Red Laser 3D Scanner
+
+# ========== CORE DEPENDENCIES (Required) ==========
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# ========== AI DEPTH ESTIMATION (Optional but Recommended) ==========
+# For AI-powered depth maps (Mode 4)
+torch>=2.0.0
+torchvision>=0.15.0
+timm>=0.9.0
+
+# ========== 3D MESH GENERATION (Optional) ==========
+# For point cloud visualization and mesh export
+open3d>=0.18.0
+
+# ========== SYSTEM INFO (Optional) ==========
+# For RAM/CPU monitoring in system check
+psutil>=5.9.0
+
+# ========== INSTALLATION INSTRUCTIONS ==========
+# 
+# Basic Installation (laser scanning only):
+#   pip install opencv-python numpy
+#
+# Full Installation (with AI depth + 3D viewer):
+#   pip install -r requirements.txt
+#
+# GPU Acceleration (CUDA - for faster AI depth):
+#   1. Install CUDA 11.8 or 12.x from NVIDIA
+#   2. Install PyTorch with CUDA:
+#      pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+#   3. Install remaining packages:
+#      pip install opencv-python numpy timm open3d psutil
+#
+# ========== OPTIONAL ENHANCEMENTS ==========
+# tkinter (usually comes with Python, for window centering)
+# pygetwindow (for window management - not essential)

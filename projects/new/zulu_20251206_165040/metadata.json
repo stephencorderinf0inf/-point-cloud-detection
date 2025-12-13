@@ -1,0 +1,25 @@
+{
+  "name": "zulu",
+  "category": "new",
+  "created": "2025-12-06T17:38:02.421605",
+  "notes": "none",
+  "scan_settings": {
+    "brightness_threshold": 140,
+    "hue_range": [
+      0,
+      20
+    ],
+    "saturation_min": 80,
+    "value_min": 100,
+    "area_range": [
+      5,
+      1000
+    ],
+    "mode": "CURVE TRACING",
+    "roi_enabled": false
+  },
+  "point_count": 122933,
+  "frame_count": 0,
+  "quality_score": 0.0,
+  "last_modified": "2025-12-07T14:49:22.856484"
+}
