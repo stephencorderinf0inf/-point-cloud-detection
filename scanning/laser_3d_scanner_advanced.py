@@ -311,6 +311,10 @@ MODE_CURVE = 1
 MODE_CORNERS = 2
 MODE_DEPTH = 3  # 🎨 NEW: AI depth estimation mode
 
+# Capture modes
+CAPTURE_MODE_PHOTO = 0  # Capture current video frame
+CAPTURE_MODE_POINTCLOUD = 1  # Capture point cloud 3D view
+
 # Red laser detection settings for 635nm (ORANGE-RED, not pure red!)
 # 635nm appears as ORANGE-RED, so we expand the hue range
 DEFAULT_RED_HUE_MIN = 0
@@ -1823,6 +1827,7 @@ def scan_3d_points(project_dir=None):
     current_mode = MODE_LASER
     current_session = 0
     current_angle = 0.0
+    capture_mode = CAPTURE_MODE_PHOTO  # 📸 Photo vs Point Cloud capture
     
     # Get optimal camera matrix
     h, w = 720, 1280
@@ -1934,7 +1939,8 @@ def scan_3d_points(project_dir=None):
     print("\n" + "="*70)
     print("CONTROLS:")
     print("  1/2/3/4 - Mode switch")
-    print("  SPACE   - Capture")
+    print("  SPACE   - Capture (points/photo/cloud based on mode)")
+    print("  t       - Toggle capture mode (Photo <-> Point Cloud)")
     print("  o       - Open 3D viewer")
     print("  s       - Save PLY + mesh")
     print("  v       - Toggle depth viz (mode 4)")
@@ -2013,12 +2019,14 @@ def scan_3d_points(project_dir=None):
         # ========================================
         # This keeps all critical info visible and unobstructed by hidable panels
         mesh_label = "Poisson" if mesh_method == "POISSON" else "BPA"
+        capture_label = "POINT CLOUD" if capture_mode == CAPTURE_MODE_POINTCLOUD else "PHOTO"
         
         # Build status lines
         status_lines = []
         status_lines.append(f"Mode: {mode_names[current_mode]}")
         status_lines.append(f"Points: {len(points_3d):,}")
         status_lines.append(f"Mesh: {mesh_label}")
+        status_lines.append(f"Capture: {capture_label}")  # NEW: Show active capture mode
         
         # Spectrum info
         spectrum_name = spectrum_presets[current_spectrum_idx]['name']
@@ -2167,6 +2175,58 @@ def scan_3d_points(project_dir=None):
         # ===== CAPTURE (ALL MODES) =====
         elif key == ord(' '):
             
+            # CHECK CAPTURE MODE FIRST - Photo or Point Cloud capture
+            if capture_mode == CAPTURE_MODE_PHOTO:
+                # Save current video frame
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                photo_filename = SAVE_DIRECTORY / f"photo_{timestamp}.jpg"
+                cv2.imwrite(str(photo_filename), display_frame)
+                print(f"📷 Photo saved: {photo_filename.name}")
+                continue  # Skip normal point capture
+            
+            elif capture_mode == CAPTURE_MODE_POINTCLOUD:
+                # Save point cloud 3D viewer screenshot
+                if len(points_3d) > 0:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    print("\n📸 Capturing point cloud view...")
+                    
+                    try:
+                        o3d_module = get_open3d()
+                        if o3d_module:
+                            # Create point cloud object
+                            pcd = o3d_module.geometry.PointCloud()
+                            pcd.points = o3d_module.utility.Vector3dVector(points_3d)
+                            if points_colors:
+                                pcd.colors = o3d_module.utility.Vector3dVector(points_colors)
+                            
+                            # Set up visualizer for screenshot (headless)
+                            vis = o3d_module.visualization.Visualizer()
+                            vis.create_window(visible=False, width=1920, height=1080)
+                            vis.add_geometry(pcd)
+                            
+                            # Add coordinate frame
+                            mesh_frame = o3d_module.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
+                            vis.add_geometry(mesh_frame)
+                            
+                            # Set view
+                            vis.poll_events()
+                            vis.update_renderer()
+                            
+                            # Capture image
+                            screenshot_path = SAVE_DIRECTORY / f"pointcloud_view_{timestamp}.png"
+                            vis.capture_screen_image(str(screenshot_path))
+                            vis.destroy_window()
+                            
+                            print(f"✓ Point cloud view saved: {screenshot_path.name}")
+                        else:
+                            print("❌ Open3D not available - cannot capture point cloud view")
+                    except Exception as e:
+                        print(f"❌ Error capturing point cloud: {e}")
+                else:
+                    print("⚠️  No points captured yet - scan some points first!")
+                continue  # Skip normal point capture
+            
+            # NORMAL POINT CAPTURE MODE - proceed with regular scanning
             # QUALITY WARNING BEFORE CAPTURE (non-blocking)
             if ai_result:
                 fps = ai_result.get('fps', 0)
@@ -2430,6 +2490,12 @@ def scan_3d_points(project_dir=None):
                         
                     except Exception as e:
                         print(f"❌ Error: {e}")
+        
+        # ===== TOGGLE CAPTURE MODE =====
+        elif key == ord('t'):
+            capture_mode = 1 - capture_mode  # Toggle between 0 and 1
+            mode_name = "POINT CLOUD" if capture_mode == CAPTURE_MODE_POINTCLOUD else "PHOTO"
+            print(f"📸 Capture mode: {mode_name}")
         
         # ===== 3D VIEWER =====
         elif key == ord('o'):

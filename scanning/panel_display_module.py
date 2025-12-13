@@ -78,8 +78,7 @@ class PanelDisplayModule:
         
         h, w = frame.shape[:2]
         panel_x, panel_y = 10, 10
-        panel_w, panel_h = 360, 700
- # 🎨 INCREASED HEIGHT for sensitivity section
+        panel_w, panel_h = 340, 650  # Reduced from 360x710
         
         # Ensure panel fits on screen
         if panel_y + panel_h > h:
@@ -99,42 +98,42 @@ class PanelDisplayModule:
         
         # Title
         cv2.putText(frame, "SCANNER CONTROLS", 
-                   (panel_x + 10, panel_y + 25),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 0), 2)
+                   (panel_x + 10, panel_y + 22),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
         
         # Hide button hint
         cv2.putText(frame, "[B] Hide", 
-                   (panel_x + panel_w - 90, panel_y + 25),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+                   (panel_x + panel_w - 80, panel_y + 22),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.38, (200, 200, 200), 1)
         
-        y_offset = 50
-        line_height = 20
+        y_offset = 42
+        line_height = 18  # Reduced from 20
         
         # === STATUS SECTION ===
         cv2.putText(frame, f"Angle: {current_angle:.1f}deg", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 0), 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 0), 1)
         y_offset += line_height
         
         cv2.putText(frame, f"Session: {current_session}", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 0), 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 0), 1)
         y_offset += line_height
         
         cv2.putText(frame, f"Step: {rotation_step:.1f}deg", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 0), 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 0), 1)
         y_offset += line_height
         
         cv2.putText(frame, f"Points: {points_count}", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 0), 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 0), 1)
         y_offset += line_height
         
         cv2.putText(frame, f"Mode: {current_mode}", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 0), 1)
-        y_offset += line_height + 6
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 0), 1)
+        y_offset += line_height + 4
         
         # Separator
         cv2.line(frame, (panel_x + 10, panel_y + y_offset - 3), 
@@ -145,7 +144,7 @@ class PanelDisplayModule:
         # === ROTATION CONTROLS ===
         cv2.putText(frame, "ROTATION:", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 0), 1)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 0), 1)
         y_offset += line_height
         
         rotation_controls = [
@@ -160,21 +159,21 @@ class PanelDisplayModule:
             weight = 2 if "SPACE" in line else 1
             cv2.putText(frame, line, 
                        (panel_x + 20, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, weight)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, color, weight)
             y_offset += line_height
         
-        y_offset += 4
+        y_offset += 3
         
         # Separator
         cv2.line(frame, (panel_x + 10, panel_y + y_offset - 3), 
                 (panel_x + panel_w - 10, panel_y + y_offset - 3), 
                 (100, 100, 100), 1)
-        y_offset += 8
+        y_offset += 6
         
         # === MODE SWITCHING ===
         cv2.putText(frame, "MODES:", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 200, 0), 1)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 200, 0), 1)
         y_offset += line_height
         
         mode_controls = [
@@ -187,21 +186,21 @@ class PanelDisplayModule:
         for line in mode_controls:
             cv2.putText(frame, line, 
                        (panel_x + 20, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 200, 0), 1)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 200, 0), 1)
             y_offset += line_height
         
-        y_offset += 4
+        y_offset += 3
         
         # Separator
         cv2.line(frame, (panel_x + 10, panel_y + y_offset - 3), 
                 (panel_x + panel_w - 10, panel_y + y_offset - 3), 
                 (100, 100, 100), 1)
-        y_offset += 8
+        y_offset += 6
         
         # === UTILITY CONTROLS ===
         cv2.putText(frame, "UTILITIES:", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (200, 200, 200), 1)
         y_offset += line_height
         
         utility_controls = [
@@ -209,6 +208,7 @@ class PanelDisplayModule:
             "[D] Debug view",
             "[C] Clear points",
             "[O] 3D Viewer",
+            "[T] Toggle capture mode",
             "[S] Save cloud",
             "[M] Mesh method",
             "[I] Toggle AI panel",
@@ -218,20 +218,20 @@ class PanelDisplayModule:
         for line in utility_controls:
             cv2.putText(frame, line, 
                        (panel_x + 20, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.42, (200, 200, 200), 1)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, (200, 200, 200), 1)
             y_offset += line_height
         
-        y_offset += 4
+        y_offset += 3
         
         # 🎨 NEW: SENSITIVITY SECTION
         cv2.line(frame, (panel_x + 10, panel_y + y_offset - 3), 
                 (panel_x + panel_w - 10, panel_y + y_offset - 3), 
                 (100, 100, 100), 1)
-        y_offset += 8
+        y_offset += 6
         
         cv2.putText(frame, "SENSITIVITY:", 
                    (panel_x + 15, panel_y + y_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 200, 255), 1)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.40, (100, 200, 255), 1)
         y_offset += line_height
         
         # Show sensitivity controls
@@ -244,12 +244,12 @@ class PanelDisplayModule:
         for line in sensitivity_controls:
             cv2.putText(frame, line, 
                        (panel_x + 20, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.42, (100, 200, 255), 1)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, (100, 200, 255), 1)
             y_offset += line_height
         
         # Show CURRENT VALUES if sensitivity_info provided
         if sensitivity_info:
-            y_offset += 4
+            y_offset += 3
             
             curve_rate = sensitivity_info.get('curve_rate', 5)
             corner_max = sensitivity_info.get('corner_max', 100)
@@ -258,18 +258,18 @@ class PanelDisplayModule:
             
             cv2.putText(frame, f"Curve: 1/{curve_rate}", 
                        (panel_x + 30, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, (150, 220, 255), 1)
-            y_offset += 16
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.35, (150, 220, 255), 1)
+            y_offset += 15
             
             cv2.putText(frame, f"Corners: {corner_max}", 
                        (panel_x + 30, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, (150, 220, 255), 1)
-            y_offset += 16
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.35, (150, 220, 255), 1)
+            y_offset += 15
             
             cv2.putText(frame, f"Edges: {canny_low}/{canny_high}", 
                        (panel_x + 30, panel_y + y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, (150, 220, 255), 1)
-            y_offset += 16
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.35, (150, 220, 255), 1)
+            y_offset += 15
         
         y_offset += 4
         
