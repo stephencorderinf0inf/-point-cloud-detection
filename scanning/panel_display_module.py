@@ -25,12 +25,19 @@ class PanelDisplayModule:
         self.window_name = window_name
         self.info_box_visible = True
         self.ai_panel_visible = True
+        self.terminal_visible = True  # Terminal output panel visibility
         
         # FPS tracking
         self.fps_history = []
         self.fps_window = 30
         self.last_frame_time = time.time()
         self.current_fps = 0.0
+        
+        # Message bar tracking
+        self.message_queue = []
+        self.max_messages = 10  # Show more messages for scrolling
+        self.message_timeout = None  # No timeout - messages persist
+        self.scroll_offset = 0  # Scroll position (0 = newest messages)
     
     def update_fps(self):
         """Update FPS calculation."""
@@ -49,6 +56,143 @@ class PanelDisplayModule:
         
         self.last_frame_time = current_time
         return self.current_fps
+    
+    def add_message(self, text, color=(255, 255, 0)):
+        """
+        Add a message to the message bar queue.
+        
+        Args:
+            text: Message text to display
+            color: BGR color tuple (default: cyan)
+        """
+        timestamp = time.time()
+        self.message_queue.append({
+            'text': text,
+            'color': color,
+            'timestamp': timestamp
+        })
+        
+        # Keep scrolling window of recent messages
+        if len(self.message_queue) > 50:  # Keep last 50 for scrollback
+            self.message_queue.pop(0)
+    
+    def clear_old_messages(self):
+        """Remove messages older than timeout (if timeout is set)."""
+        if self.message_timeout is None:
+            return  # No timeout - keep all messages
+        
+        current_time = time.time()
+        self.message_queue = [msg for msg in self.message_queue 
+                             if current_time - msg['timestamp'] < self.message_timeout]
+    
+    def scroll_terminal_up(self):
+        """Scroll terminal output up (show older messages)."""
+        max_scroll = max(0, len(self.message_queue) - self.max_messages)
+        self.scroll_offset = min(self.scroll_offset + 1, max_scroll)
+        return self.scroll_offset
+    
+    def scroll_terminal_down(self):
+        """Scroll terminal output down (show newer messages)."""
+        self.scroll_offset = max(0, self.scroll_offset - 1)
+        return self.scroll_offset
+    
+    def scroll_to_bottom(self):
+        """Reset scroll to show newest messages."""
+        self.scroll_offset = 0
+    
+    def draw_message_bar(self, frame):
+        """
+        Draw scrollable terminal log at the bottom of screen.
+        Positioned below both side panels (controls and camera info).
+        
+        Args:
+            frame: Video frame
+            
+        Returns:
+            Frame with message bar drawn
+        """
+        # Return early if terminal is hidden
+        if not self.terminal_visible:
+            return frame
+        
+        # Clean old messages (if timeout enabled)
+        self.clear_old_messages()
+        
+        if not self.message_queue:
+            return frame
+        
+        h, w = frame.shape[:2]
+        
+        # Terminal log at absolute bottom - spanning full width
+        bar_height = 200  # ~10 lines at 18px each + margins
+        bar_y = h - bar_height  # Bottom of screen
+        bar_x_left = 360  # Start after control panel
+        bar_x_right = w - 300  # Stop before camera info panel (280px + margin)
+        
+        # Semi-transparent background
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (bar_x_left, bar_y), (bar_x_right, h - 10), 
+                     (20, 20, 20), -1)
+        cv2.addWeighted(overlay, 0.90, frame, 0.10, 0, frame)
+        
+        # Border
+        cv2.rectangle(frame, (bar_x_left, bar_y), (bar_x_right, h - 10), 
+                     (255, 255, 0), 2)  # Cyan border
+        
+        # Title
+        cv2.putText(frame, "TERMINAL OUTPUT", 
+                   (bar_x_left + 10, bar_y + 22),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+        
+        # Scroll indicator in title bar
+        if self.scroll_offset > 0:
+            scroll_text = f"[Scrolled up {self.scroll_offset}]"
+            cv2.putText(frame, scroll_text,
+                       (bar_x_left + 180, bar_y + 22),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+        
+        # Draw messages with scroll offset
+        line_height = 18
+        y_offset = bar_y + 45
+        
+        # Calculate visible range based on scroll offset
+        total_messages = len(self.message_queue)
+        if total_messages > 0:
+            # When scrolled, show older messages
+            end_idx = total_messages - self.scroll_offset
+            start_idx = max(0, end_idx - self.max_messages)
+            visible_messages = self.message_queue[start_idx:end_idx]
+        else:
+            visible_messages = []
+        
+        for msg in visible_messages:
+            # Truncate long messages to fit width
+            text = msg['text']
+            max_chars = int((bar_x_right - bar_x_left - 20) / 7)  # Approximate char width
+            if len(text) > max_chars:
+                text = text[:max_chars-3] + "..."
+            
+            cv2.putText(frame, text, 
+                       (bar_x_left + 10, y_offset),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.38, msg['color'], 1)
+            y_offset += line_height
+        
+        # Show scroll controls and indicator
+        controls_text = "[[ / ]]: Scroll  [\\]: Bottom"
+        cv2.putText(frame, controls_text,
+                   (bar_x_right - 280, bar_y + 22),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, (150, 150, 150), 1)
+        
+        # Show count if scrolled or if more messages exist above
+        if self.scroll_offset > 0 or len(self.message_queue) > self.max_messages:
+            total_above = len(self.message_queue) - len(visible_messages) - self.scroll_offset
+            if total_above > 0:
+                count_text = f"({total_above} more above)"
+                cv2.putText(frame, count_text,
+                           (bar_x_left + 10, h - 15),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.35, (150, 150, 150), 1)
+        
+        return frame
     
     def draw_scanner_controls_panel(self, frame, current_angle=0, rotation_step=30, 
                                    current_session=0, points_count=0, current_mode="Unknown",
@@ -78,7 +222,7 @@ class PanelDisplayModule:
         
         h, w = frame.shape[:2]
         panel_x, panel_y = 10, 10
-        panel_w, panel_h = 340, 650  # Reduced from 360x710
+        panel_w, panel_h = 340, 700 # Reduced from 360x710
         
         # Ensure panel fits on screen
         if panel_y + panel_h > h:
@@ -208,10 +352,13 @@ class PanelDisplayModule:
             "[D] Debug view",
             "[C] Clear points",
             "[O] 3D Viewer",
+            "[F] Process photos",
             "[T] Toggle capture mode",
             "[S] Save cloud",
             "[M] Mesh method",
             "[I] Toggle AI panel",
+            "[H] Hide terminal",
+            "[[ / ]] Scroll terminal",
             "[Q] Quit"
         ]
         
@@ -412,6 +559,9 @@ class PanelDisplayModule:
             sensitivity_info=scanner_params.get('sensitivity_info')  # 🎨 NEW
         )
         
+        # Draw message bar (between panels)
+        frame = self.draw_message_bar(frame)
+        
         # Draw bottom-right AI/quality panel
         frame = self.draw_ai_quality_panel(frame, ai_result)
         
@@ -426,6 +576,11 @@ class PanelDisplayModule:
         """Toggle AI panel visibility."""
         self.ai_panel_visible = not self.ai_panel_visible
         return self.ai_panel_visible
+    
+    def toggle_terminal(self):
+        """Toggle terminal output panel visibility."""
+        self.terminal_visible = not self.terminal_visible
+        return self.terminal_visible
 
 
 # Example usage

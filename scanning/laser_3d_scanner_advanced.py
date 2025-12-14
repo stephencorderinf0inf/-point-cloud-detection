@@ -12,6 +12,8 @@ from pathlib import Path
 import time
 from datetime import datetime
 import argparse
+import subprocess
+import shutil
 
 # ========== LAZY LOADING FLAGS ==========
 # Heavy modules loaded on-demand
@@ -44,7 +46,7 @@ def get_depth_estimator():
         try:
             from depth_estimator import DepthEstimator
             DEPTH_AVAILABLE = True
-            _depth_estimator = DepthEstimator
+            _depth_estimator = DepthEstimator()  # Create instance
             print("✅ Depth estimation module loaded successfully")
         except Exception as e:
             print(f"⚠️  Depth estimator failed to load: {e}")
@@ -1140,6 +1142,62 @@ def save_point_cloud(points_3d, filename="scan_3d_bosch_glm42.npz",
     return output_path
 
 
+def find_meshlab():
+    """
+    Detect if MeshLab is installed on the system.
+    
+    Returns:
+        Path to meshlab.exe or None if not found
+    """
+    # Common MeshLab installation paths on Windows
+    common_paths = [
+        r"C:\Program Files\VCG\MeshLab\meshlab.exe",
+        r"C:\Program Files (x86)\VCG\MeshLab\meshlab.exe",
+        r"C:\Program Files\MeshLab\meshlab.exe",
+        r"C:\Program Files (x86)\MeshLab\meshlab.exe",
+    ]
+    
+    # Check common paths first
+    for path in common_paths:
+        if Path(path).exists():
+            return path
+    
+    # Try to find via 'where' command (Windows)
+    try:
+        result = subprocess.run(['where', 'meshlab'], 
+                              capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            return result.stdout.strip().split('\n')[0]
+    except:
+        pass
+    
+    return None
+
+
+def open_in_meshlab(file_path):
+    """
+    Open PLY/OBJ file in MeshLab if available.
+    
+    Args:
+        file_path: Path to PLY or OBJ file
+    
+    Returns:
+        True if launched successfully, False otherwise
+    """
+    meshlab_path = find_meshlab()
+    
+    if meshlab_path is None:
+        return False
+    
+    try:
+        # Launch MeshLab with file (non-blocking)
+        subprocess.Popen([meshlab_path, str(file_path)])
+        return True
+    except Exception as e:
+        print(f"   ⚠️  Failed to launch MeshLab: {e}")
+        return False
+
+
 def visualize_point_cloud_3d(points_3d, points_colors=None, window_name="3D Point Cloud Viewer", width=1280, height=720):
     """
     Launch interactive Open3D 3D viewer for current point cloud.
@@ -1213,18 +1271,25 @@ def visualize_point_cloud_3d(points_3d, points_colors=None, window_name="3D Poin
             viewer_left = 50
             viewer_top = 50
         
-        # Launch visualizer
-        o3d.visualization.draw_geometries(
-            [pcd, coord_frame],
-            window_name=window_name,
-            width=width,
-            height=height,
-            left=viewer_left,
-            top=viewer_top,
-            point_show_normal=False,
-            mesh_show_wireframe=False,
-            mesh_show_back_face=False
-        )
+        # Launch visualizer (suppress GLFW context warnings on close)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=Warning)
+            o3d.visualization.draw_geometries(
+                [pcd, coord_frame],
+                window_name=window_name,
+                width=width,
+                height=height,
+                left=viewer_left,
+                top=viewer_top,
+                point_show_normal=False,
+                mesh_show_wireframe=False,
+                mesh_show_back_face=False
+            )
+        
+        # Allow OpenGL context to cleanup properly
+        import time
+        time.sleep(0.1)
         
         print("✓ 3D viewer closed")
         
@@ -1292,6 +1357,27 @@ def generate_poisson_mesh(ply_path, octree_depth=9):
         mesh.remove_duplicated_triangles()
         mesh.remove_duplicated_vertices()
         mesh.remove_non_manifold_edges()
+        
+        # 🎨 Transfer colors from point cloud to mesh vertices
+        if pcd.has_colors():
+            print(f"   Transferring colors from point cloud to mesh...")
+            mesh_vertices = np.asarray(mesh.vertices)
+            pcd_points = np.asarray(pcd.points)
+            pcd_colors = np.asarray(pcd.colors)
+            
+            # Build KD-tree for nearest neighbor search
+            from scipy.spatial import cKDTree
+            tree = cKDTree(pcd_points)
+            
+            # Find nearest point cloud point for each mesh vertex
+            distances, indices = tree.query(mesh_vertices, k=1)
+            
+            # Assign colors from nearest neighbors
+            mesh_colors = pcd_colors[indices]
+            mesh.vertex_colors = o3d.utility.Vector3dVector(mesh_colors)
+            print(f"   ✓ Colors transferred to {len(mesh_colors):,} mesh vertices")
+        else:
+            print(f"   ℹ️  No colors in point cloud - mesh will be grayscale")
         
         print(f"   Mesh: {len(mesh.vertices):,} vertices, {len(mesh.triangles):,} triangles")
         
@@ -1371,6 +1457,27 @@ def generate_bpa_mesh(ply_path, ball_radius=5.0):
         mesh.remove_duplicated_triangles()
         mesh.remove_duplicated_vertices()
         mesh.remove_non_manifold_edges()
+        
+        # 🎨 Transfer colors from point cloud to mesh vertices
+        if pcd.has_colors():
+            print(f"   Transferring colors from point cloud to mesh...")
+            mesh_vertices = np.asarray(mesh.vertices)
+            pcd_points = np.asarray(pcd.points)
+            pcd_colors = np.asarray(pcd.colors)
+            
+            # Build KD-tree for nearest neighbor search
+            from scipy.spatial import cKDTree
+            tree = cKDTree(pcd_points)
+            
+            # Find nearest point cloud point for each mesh vertex
+            distances, indices = tree.query(mesh_vertices, k=1)
+            
+            # Assign colors from nearest neighbors
+            mesh_colors = pcd_colors[indices]
+            mesh.vertex_colors = o3d.utility.Vector3dVector(mesh_colors)
+            print(f"   ✓ Colors transferred to {len(mesh_colors):,} mesh vertices")
+        else:
+            print(f"   ℹ️  No colors in point cloud - mesh will be grayscale")
         
         print(f"   Mesh: {len(mesh.vertices):,} vertices, {len(mesh.triangles):,} triangles")
         
@@ -1678,6 +1785,33 @@ def scan_3d_points(project_dir=None):
     PanelDisplayModule = load_panel_display()
     panel_display = PanelDisplayModule(window_name="Bosch GLM 42 Scanner (635nm)")
     
+    # Override print to also send to message bar
+    _original_print = print
+    def print_to_bar(*args, **kwargs):
+        """Print to terminal AND add to video message bar."""
+        # Print normally to terminal
+        _original_print(*args, **kwargs)
+        
+        # Also add to message bar
+        message = ' '.join(str(arg) for arg in args)
+        # Clean up ANSI codes and emoji for display
+        message = message.replace('\n', ' ').strip()
+        if message:  # Only add non-empty messages
+            # Color coding based on message content
+            if '❌' in message or 'ERROR' in message.upper():
+                color = (0, 0, 255)  # Red
+            elif '✅' in message or '✓' in message:
+                color = (0, 255, 0)  # Green
+            elif '⚠️' in message or 'WARNING' in message.upper():
+                color = (0, 255, 255)  # Yellow
+            else:
+                color = (255, 255, 255)  # White
+            panel_display.add_message(message, color)
+    
+    # Use custom print in this scope
+    import builtins
+    builtins.print = print_to_bar
+    
     # ========================================
     # 🎯 CAMERA CALIBRATION WITH AUTO-SETUP
     # ========================================
@@ -1726,6 +1860,156 @@ def scan_3d_points(project_dir=None):
     
     if not cap.isOpened():
         print("❌ Cannot open webcam")
+        print("\n" + "="*70)
+        print("📸 PHOTO MODE: Process existing images into point clouds")
+        print("="*70)
+        
+        # Switch to photo processing mode
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        # Ask user to select image files
+        root = tk.Tk()
+        root.withdraw()
+        
+        print("\n👉 Select image file(s) to process...")
+        file_paths = filedialog.askopenfilenames(
+            title="Select images to process",
+            filetypes=[
+                ("Image files", "*.jpg *.jpeg *.png *.bmp"),
+                ("All files", "*.*")
+            ]
+        )
+        root.destroy()
+        
+        if not file_paths:
+            print("❌ No images selected - exiting")
+            return
+        
+        print(f"\n✓ Selected {len(file_paths)} image(s)")
+        
+        # Process each image
+        for img_path in file_paths:
+            img_path = Path(img_path)
+            print(f"\n📷 Processing: {img_path.name}")
+            
+            # Load image
+            frame = cv2.imread(str(img_path))
+            if frame is None:
+                print(f"   ❌ Failed to load image")
+                continue
+            
+            h, w = frame.shape[:2]
+            print(f"   Resolution: {w}x{h}")
+            
+            # Get depth estimator
+            estimator = get_depth_estimator()
+            if not estimator:
+                print("   ❌ Depth estimation unavailable - install PyTorch")
+                continue
+            
+            # Estimate depth
+            print("   🤖 Running AI depth estimation...")
+            depth_map = estimator.estimate_depth(frame)
+            
+            if depth_map is None:
+                print("   ❌ Depth estimation failed")
+                continue
+            
+            # Create point cloud from depth map
+            print("   🎯 Generating point cloud...")
+            
+            # Use default camera matrix if calibration not available
+            if camera_matrix is None:
+                fx = fy = w
+                cx, cy = w // 2, h // 2
+            else:
+                fx = camera_matrix[0, 0]
+                fy = camera_matrix[1, 1]
+                cx = camera_matrix[0, 2]
+                cy = camera_matrix[1, 2]
+            
+            # Convert depth map to point cloud
+            points_3d = []
+            points_colors = []
+            
+            downsample = 4  # Process every 4th pixel
+            min_depth_m = 0.5
+            max_depth_m = 10.0
+            
+            for y in range(0, h, downsample):
+                for x in range(0, w, downsample):
+                    depth_value = depth_map[y, x]
+                    
+                    # Convert to meters
+                    depth_m = min_depth_m + (max_depth_m - min_depth_m) * depth_value
+                    
+                    if min_depth_m <= depth_m <= max_depth_m:
+                        z = depth_m * 1000  # Convert to mm
+                        px = (x - cx) * z / fx
+                        py = (y - cy) * z / fy
+                        
+                        points_3d.append([px, py, z])
+                        
+                        # Get color from original image
+                        color_bgr = frame[y, x]
+                        color_rgb = [int(color_bgr[2]) / 255.0, 
+                                   int(color_bgr[1]) / 255.0, 
+                                   int(color_bgr[0]) / 255.0]
+                        points_colors.append(color_rgb)
+            
+            print(f"   ✓ Generated {len(points_3d):,} points")
+            
+            # Save point cloud
+            output_name = img_path.stem + "_pointcloud.ply"
+            output_path = SAVE_DIRECTORY / output_name
+            
+            # Save PLY file
+            with open(output_path, 'w') as f:
+                f.write("ply\n")
+                f.write("format ascii 1.0\n")
+                f.write(f"element vertex {len(points_3d)}\n")
+                f.write("property float x\n")
+                f.write("property float y\n")
+                f.write("property float z\n")
+                f.write("property uchar red\n")
+                f.write("property uchar green\n")
+                f.write("property uchar blue\n")
+                f.write("end_header\n")
+                
+                for i, (pt, col) in enumerate(zip(points_3d, points_colors)):
+                    r = int(col[0] * 255)
+                    g = int(col[1] * 255)
+                    b = int(col[2] * 255)
+                    f.write(f"{pt[0]:.3f} {pt[1]:.3f} {pt[2]:.3f} {r} {g} {b}\n")
+            
+            print(f"   ✅ Saved: {output_path.name}")
+            
+            # Generate mesh if Open3D available
+            o3d_module = get_open3d()
+            if o3d_module and len(points_3d) > 100:
+                print("   🔨 Generating mesh...")
+                try:
+                    pcd = o3d_module.geometry.PointCloud()
+                    pcd.points = o3d_module.utility.Vector3dVector(points_3d)
+                    pcd.colors = o3d_module.utility.Vector3dVector(points_colors)
+                    
+                    # Poisson reconstruction
+                    pcd.estimate_normals()
+                    mesh, densities = o3d_module.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                        pcd, depth=8
+                    )
+                    
+                    mesh_path = SAVE_DIRECTORY / (img_path.stem + "_mesh.obj")
+                    o3d_module.io.write_triangle_mesh(str(mesh_path), mesh)
+                    print(f"   ✅ Mesh saved: {mesh_path.name}")
+                except Exception as e:
+                    print(f"   ⚠️  Mesh generation failed: {e}")
+        
+        print("\n" + "="*70)
+        print(f"✅ Photo processing complete!")
+        print(f"📁 Output: {SAVE_DIRECTORY}")
+        print("="*70)
         return
     
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -1941,12 +2225,15 @@ def scan_3d_points(project_dir=None):
     print("  1/2/3/4 - Mode switch")
     print("  SPACE   - Capture (points/photo/cloud based on mode)")
     print("  t       - Toggle capture mode (Photo <-> Point Cloud)")
+    print("  f       - Process photos (AI depth → point cloud)")
     print("  o       - Open 3D viewer")
     print("  s       - Save PLY + mesh")
+    print("  c       - Clear ROI (Region of Interest)")
     print("  v       - Toggle depth viz (mode 4)")
     print("  p       - Toggle density (mode 4)")
     print("  +/-     - Curve sample rate")
     print("  w/e     - Min depth range (mode 4)")
+    print("  Mouse   - Click & drag to set ROI")
     print("  q/ESC   - Quit")
     print("="*70)
     
@@ -2145,10 +2432,223 @@ def scan_3d_points(project_dir=None):
         cv2.imshow(window_name, display_frame)
         
         # ========== KEYBOARD CONTROLS ==========
-        key = cv2.waitKey(1) & 0xFF
+        key_raw = cv2.waitKey(1)  # Get full key code first
+        key = key_raw & 0xFF      # Masked version for regular keys
         
-        if key == ord('q') or key == 27:  # Quit
+        # Terminal scroll controls
+        if key == ord('['):  # [ key = scroll up (older messages)
+            panel_display.scroll_terminal_up()
+        
+        elif key == ord(']'):  # ] key = scroll down (newer messages)
+            panel_display.scroll_terminal_down()
+        
+        elif key == ord('\\'):  # \ key = jump to bottom
+            panel_display.scroll_to_bottom()
+        
+        elif key == ord('q') or key == 27:  # Quit
             break
+        
+        # ===== PHOTO PROCESSING MODE =====
+        elif key == ord('f'):
+            print("\n" + "="*70)
+            print("📸 PHOTO MODE: Process existing images into point clouds")
+            print("="*70)
+            
+            import tkinter as tk
+            from tkinter import filedialog
+            
+            # Ask user to select image files
+            root = tk.Tk()
+            root.withdraw()
+            
+            print("\n👉 Select image file(s) to process...")
+            file_paths = filedialog.askopenfilenames(
+                title="Select images to process",
+                filetypes=[
+                    ("Image files", "*.jpg *.jpeg *.png *.bmp"),
+                    ("All files", "*.*")
+                ],
+                initialdir=str(SAVE_DIRECTORY)
+            )
+            root.destroy()
+            
+            if not file_paths:
+                print("❌ No images selected - returning to scanner")
+            else:
+                print(f"\n✓ Selected {len(file_paths)} image(s)")
+                
+                # Process each image
+                for idx, img_path in enumerate(file_paths, 1):
+                    img_path = Path(img_path)
+                    print(f"\n📷 [{idx}/{len(file_paths)}] Processing: {img_path.name}")
+                    
+                    # Load image
+                    frame_img = cv2.imread(str(img_path))
+                    if frame_img is None:
+                        print(f"   ❌ Failed to load image")
+                        continue
+                    
+                    h_img, w_img = frame_img.shape[:2]
+                    print(f"   Resolution: {w_img}x{h_img}")
+                    
+                    # Get depth estimator
+                    estimator = get_depth_estimator()
+                    if not estimator:
+                        print("   ❌ Depth estimation unavailable - install PyTorch")
+                        continue
+                    
+                    # Estimate depth
+                    print("   🤖 Running AI depth estimation...")
+                    depth_map_img = estimator.estimate_depth(frame_img)
+                    
+                    if depth_map_img is None:
+                        print("   ❌ Depth estimation failed")
+                        continue
+                    
+                    # Create point cloud from depth map
+                    print("   🎯 Generating point cloud...")
+                    
+                    # Convert depth map to point cloud
+                    points_3d_img = []
+                    points_colors_img = []
+                    
+                    # Better quality: downsample=1 (full res), 2 (half), 4 (quarter)
+                    # Adjust based on image size - larger images need more downsampling
+                    if w_img * h_img > 2000000:  # > 2MP
+                        downsample_img = 2  # Process every 2nd pixel
+                    else:
+                        downsample_img = 1  # Full resolution for smaller images
+                    
+                    # Estimate generic camera for photos (rule of thumb: focal ~ image width)
+                    fx_img = w_img  # Approximate focal length
+                    fy_img = w_img  # Assume square pixels
+                    cx_img = w_img / 2  # Center point
+                    cy_img = h_img / 2
+                    
+                    # Adaptive depth range based on image content
+                    min_depth_m_img = 0.3
+                    max_depth_m_img = 8.0
+                    
+                    for y_img in range(0, h_img, downsample_img):
+                        for x_img in range(0, w_img, downsample_img):
+                            depth_value = depth_map_img[y_img, x_img]
+                            
+                            # Convert to meters
+                            depth_m = min_depth_m_img + (max_depth_m_img - min_depth_m_img) * depth_value
+                            
+                            if min_depth_m_img <= depth_m <= max_depth_m_img:
+                                z = depth_m * 1000  # Convert to mm
+                                px = (x_img - cx_img) * z / fx_img
+                                py = (y_img - cy_img) * z / fy_img
+                                
+                                points_3d_img.append([px, py, z])
+                                
+                                # Get color from original image
+                                color_bgr = frame_img[y_img, x_img]
+                                color_rgb = [int(color_bgr[2]) / 255.0, 
+                                           int(color_bgr[1]) / 255.0, 
+                                           int(color_bgr[0]) / 255.0]
+                                points_colors_img.append(color_rgb)
+                    
+                    print(f"   ✓ Generated {len(points_3d_img):,} points")
+                    
+                    # Save point cloud
+                    output_name = img_path.stem + "_pointcloud.ply"
+                    output_path = SAVE_DIRECTORY / output_name
+                    
+                    # Save PLY file
+                    with open(output_path, 'w') as f:
+                        f.write("ply\n")
+                        f.write("format ascii 1.0\n")
+                        f.write(f"element vertex {len(points_3d_img)}\n")
+                        f.write("property float x\n")
+                        f.write("property float y\n")
+                        f.write("property float z\n")
+                        f.write("property uchar red\n")
+                        f.write("property uchar green\n")
+                        f.write("property uchar blue\n")
+                        f.write("end_header\n")
+                        
+                        for i, (pt, col) in enumerate(zip(points_3d_img, points_colors_img)):
+                            r = int(col[0] * 255)
+                            g = int(col[1] * 255)
+                            b = int(col[2] * 255)
+                            f.write(f"{pt[0]:.3f} {pt[1]:.3f} {pt[2]:.3f} {r} {g} {b}\n")
+                    
+                    print(f"   ✅ Saved: {output_path.name}")
+                    
+                    # Generate mesh if Open3D available
+                    o3d_module = get_open3d()
+                    mesh_path = None
+                    if o3d_module and len(points_3d_img) > 100:
+                        print("   🔨 Generating mesh...")
+                        try:
+                            pcd = o3d_module.geometry.PointCloud()
+                            pcd.points = o3d_module.utility.Vector3dVector(points_3d_img)
+                            pcd.colors = o3d_module.utility.Vector3dVector(points_colors_img)
+                            
+                            # Poisson reconstruction
+                            pcd.estimate_normals()
+                            mesh, densities = o3d_module.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                                pcd, depth=8
+                            )
+                            
+                            mesh_path = SAVE_DIRECTORY / (img_path.stem + "_mesh.obj")
+                            o3d_module.io.write_triangle_mesh(str(mesh_path), mesh)
+                            print(f"   ✅ Mesh saved: {mesh_path.name}")
+                        except Exception as e:
+                            print(f"   ⚠️  Mesh generation failed: {e}")
+                    
+                    # Offer viewing options
+                    print("\n   💎 Viewing Options:")
+                    
+                    # Check if MeshLab is available
+                    if find_meshlab():
+                        print("   [M] Open in MeshLab (recommended for photos)")
+                        print("   [O] Quick preview in Open3D")
+                        print("   [N] Skip viewing")
+                        print("\n   👉 Type choice in terminal: m/o/n")
+                        print("   Choice (m/o/n): ", end='')
+                        view_choice = input().strip().lower()
+                        
+                        if view_choice == 'm':
+                            # Prefer mesh if available, otherwise PLY
+                            file_to_open = mesh_path if mesh_path else output_path
+                            print(f"   🚀 Launching MeshLab with {file_to_open.name}...")
+                            if open_in_meshlab(file_to_open):
+                                print("   ✓ MeshLab opened successfully")
+                            else:
+                                print("   ❌ Failed to launch MeshLab")
+                        elif view_choice == 'o':
+                            print("   🎯 Opening basic 3D viewer...")
+                            visualize_point_cloud_3d(
+                                points_3d_img, points_colors_img,
+                                window_name=f"{img_path.stem} - {len(points_3d_img):,} points"
+                            )
+                    else:
+                        # MeshLab not found - only offer Open3D
+                        print("   💡 Install MeshLab for professional analysis:")
+                        print("      https://www.meshlab.net/")
+                        print("\n   [O] Quick preview in Open3D")
+                        print("   [N] Skip viewing")
+                        print("\n   Choice (o/n): ", end='')
+                        view_choice = input().strip().lower()
+                        
+                        if view_choice == 'o':
+                            print("   🎯 Opening basic 3D viewer...")
+                            visualize_point_cloud_3d(
+                                points_3d_img, points_colors_img,
+                                window_name=f"{img_path.stem} - {len(points_3d_img):,} points"
+                            )
+                
+                print("\n" + "="*70)
+                print(f"✅ Photo processing complete! Returning to scanner...")
+                print(f"📁 Output folder: {SAVE_DIRECTORY}")
+                print("\n💎 RECOMMENDED: Open files in MeshLab for professional analysis")
+                print("   • Download: https://www.meshlab.net/")
+                print("   • Features: Measurement tools, filters, shaders, mesh editing")
+                print("   • File → Import Mesh → Select PLY or OBJ files")
+                print("="*70)
         
         # ===== MODE SWITCHING =====
         elif key == ord('1'):
@@ -2177,11 +2677,23 @@ def scan_3d_points(project_dir=None):
             
             # CHECK CAPTURE MODE FIRST - Photo or Point Cloud capture
             if capture_mode == CAPTURE_MODE_PHOTO:
-                # Save current video frame
+                # Save current video frame (clean, without UI overlays)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                photo_filename = SAVE_DIRECTORY / f"photo_{timestamp}.jpg"
-                cv2.imwrite(str(photo_filename), display_frame)
-                print(f"📷 Photo saved: {photo_filename.name}")
+                
+                # Crop to ROI if enabled
+                if roi_enabled and roi_x2 > roi_x1 and roi_y2 > roi_y1:
+                    # Extract only the ROI region
+                    roi_cropped = undistorted[roi_y1:roi_y2, roi_x1:roi_x2].copy()
+                    photo_filename = SAVE_DIRECTORY / f"photo_roi_{timestamp}.jpg"
+                    cv2.imwrite(str(photo_filename), roi_cropped)
+                    roi_w = roi_x2 - roi_x1
+                    roi_h = roi_y2 - roi_y1
+                    print(f"📷 Photo saved (ROI {roi_w}x{roi_h}): {photo_filename.name}")
+                else:
+                    # Save full frame
+                    photo_filename = SAVE_DIRECTORY / f"photo_{timestamp}.jpg"
+                    cv2.imwrite(str(photo_filename), undistorted)
+                    print(f"📷 Photo saved (full frame): {photo_filename.name}")
                 continue  # Skip normal point capture
             
             elif capture_mode == CAPTURE_MODE_POINTCLOUD:
@@ -2317,6 +2829,11 @@ def scan_3d_points(project_dir=None):
                             py = max(0, min(int(py), h-1))
                             px = max(0, min(int(px), w-1))
                             
+                            # Skip points outside ROI if ROI is enabled
+                            if roi_enabled:
+                                if not (roi_x1 <= px <= roi_x2 and roi_y1 <= py <= roi_y2):
+                                    continue
+                            
                             distance_cm = estimate_distance_linear(py)
                             z = distance_cm * 10
                             x = (px - new_camera_matrix[0, 2]) * z / new_camera_matrix[0, 0]
@@ -2328,7 +2845,8 @@ def scan_3d_points(project_dir=None):
                             snapshot_curve_points.append(([x, y, z], color_rgb))
                     
                     all_snapshot_points.append(snapshot_curve_points)
-                    print(f"  ✓ Snapshot {snapshot_num}/3: {len(snapshot_curve_points)} curve points")
+                    roi_info = f" (ROI filtered)" if roi_enabled else ""
+                    print(f"  ✓ Snapshot {snapshot_num}/3: {len(snapshot_curve_points)} curve points{roi_info}")
                     
                     import time
                     time.sleep(0.1)
@@ -2400,6 +2918,11 @@ def scan_3d_points(project_dir=None):
                         py = max(0, min(int(py), h-1))
                         px = max(0, min(int(px), w-1))
                         
+                        # Skip points outside ROI if ROI is enabled
+                        if roi_enabled:
+                            if not (roi_x1 <= px <= roi_x2 and roi_y1 <= py <= roi_y2):
+                                continue
+                        
                         distance_cm = estimate_distance_linear(py)
                         z = distance_cm * 10
                         x = (px - new_camera_matrix[0, 2]) * z / new_camera_matrix[0, 0]
@@ -2411,7 +2934,8 @@ def scan_3d_points(project_dir=None):
                         snapshot_corner_points.append(([x, y, z], color_rgb))
                     
                     all_snapshot_corners.append(snapshot_corner_points)
-                    print(f"  ✓ Snapshot {snapshot_num}/3: {len(snapshot_corner_points)} corners")
+                    roi_info = f" (ROI filtered)" if roi_enabled else ""
+                    print(f"  ✓ Snapshot {snapshot_num}/3: {len(snapshot_corner_points)} corners{roi_info}")
                     
                     import time
                     time.sleep(0.1)
@@ -2597,9 +3121,19 @@ def scan_3d_points(project_dir=None):
             info_box_visible = panel_display.toggle_info_box()
             print(f"[PANEL] Controls: {'VISIBLE' if info_box_visible else 'HIDDEN'}")
         
+        elif key == ord('c'):
+            # Clear ROI
+            roi_enabled = False
+            roi_x1, roi_y1, roi_x2, roi_y2 = 0, 0, 0, 0
+            print("[ROI] Cleared - scanning full frame")
+        
         elif key == ord('i'):
             ai_panel_visible = panel_display.toggle_ai_panel()
             print(f"[PANEL] AI panel: {'VISIBLE' if ai_panel_visible else 'HIDDEN'}")
+        
+        elif key == ord('h'):
+            terminal_visible = panel_display.toggle_terminal()
+            print(f"[PANEL] Terminal: {'VISIBLE' if terminal_visible else 'HIDDEN'}")
         
         # ===== CARTOON MODE (ORIGINAL KEY!) =====
         elif key == ord('v'):
@@ -2689,6 +3223,11 @@ def scan_3d_points(project_dir=None):
     # Cleanup
     cap.release()
     cv2.destroyAllWindows()
+    
+    # Restore original print
+    import builtins
+    builtins.print = _original_print
+    
     print("\n✅ Scanner closed")
 
 
