@@ -15,6 +15,9 @@ import argparse
 import subprocess
 import shutil
 
+# Internationalization support
+from i18n_manager import setup_i18n, _
+
 # ========== LAZY LOADING FLAGS ==========
 # Heavy modules loaded on-demand
 DEPTH_AVAILABLE = None  # Lazy check
@@ -24,6 +27,7 @@ _open3d_module = None
 _spectrum_analyzer = None
 _panel_display = None
 _gpu_optimizer = None
+_quaternion_rotation = None
 
 def get_depth_estimator():
     """Lazy load depth estimator only when needed."""
@@ -1501,6 +1505,155 @@ def generate_bpa_mesh(ply_path, ball_radius=5.0):
         return None, None
 
 
+def generate_alpha_mesh(ply_path, alpha=10.0):
+    """
+    Generate an Alpha Shapes mesh from a point cloud.
+    Great for capturing concave surfaces and complex geometry.
+    
+    Args:
+        ply_path: Path to the input .ply point cloud file
+        alpha: Alpha value (lower = tighter fit, higher = smoother)
+    
+    Returns:
+        Tuple of (mesh_ply_path, mesh_obj_path) or (None, None) on failure
+    """
+    # Lazy load Open3D
+    o3d = get_open3d()
+    if o3d is None:
+        print("⚠️  Open3D not installed - skipping mesh generation")
+        print("   Install with: pip install open3d")
+        return None, None
+    
+    try:
+        print(f"\n🔨 Generating Alpha Shapes mesh (alpha={alpha})...")
+        
+        # Load point cloud
+        pcd = o3d.io.read_point_cloud(str(ply_path))
+        print(f"   ✓ Loaded {len(pcd.points):,} points")
+        
+        # Estimate normals if not present
+        if not pcd.has_normals():
+            print("   Computing normals...")
+            pcd.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=10.0, max_nn=30)
+            )
+            pcd.orient_normals_consistent_tangent_plane(k=15)
+        
+        # Create alpha shape mesh
+        print(f"   Running Alpha Shapes (alpha={alpha})...")
+        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
+        
+        print(f"   ✓ Generated mesh: {len(mesh.triangles):,} triangles")
+        
+        # Transfer colors from point cloud
+        if pcd.has_colors() and len(pcd.colors) > 0:
+            print(f"   Transferring colors from point cloud to mesh...")
+            mesh.vertex_colors = pcd.colors
+            mesh.compute_vertex_normals()
+            print(f"   ✓ Colors transferred to {len(mesh.vertex_colors):,} vertices")
+        
+        # Save mesh
+        base_path = ply_path.parent / ply_path.stem
+        mesh_ply_path = Path(str(base_path) + "_alpha.ply")
+        mesh_obj_path = Path(str(base_path) + "_alpha.obj")
+        
+        o3d.io.write_triangle_mesh(str(mesh_ply_path), mesh)
+        o3d.io.write_triangle_mesh(str(mesh_obj_path), mesh)
+        
+        print(f"   ✓ Saved Alpha mesh to:")
+        print(f"     PLY: {mesh_ply_path.name}")
+        print(f"     OBJ: {mesh_obj_path.name}")
+        
+        return mesh_ply_path, mesh_obj_path
+        
+    except Exception as e:
+        print(f"❌ Alpha mesh generation failed: {e}")
+        return None, None
+
+
+def generate_screened_poisson_mesh(ply_path, octree_depth=9):
+    """
+    Generate a Screened Poisson mesh from a point cloud.
+    Better sharp feature preservation than standard Poisson.
+    
+    Args:
+        ply_path: Path to the input .ply point cloud file
+        octree_depth: Octree depth (8-10 typical, higher=more detail)
+    
+    Returns:
+        Tuple of (mesh_ply_path, mesh_obj_path) or (None, None) on failure
+    """
+    # Lazy load Open3D
+    o3d = get_open3d()
+    if o3d is None:
+        print("⚠️  Open3D not installed - skipping mesh generation")
+        print("   Install with: pip install open3d")
+        return None, None
+    
+    try:
+        print(f"\n🔨 Generating Screened Poisson mesh (depth={octree_depth})...")
+        
+        # Load point cloud
+        pcd = o3d.io.read_point_cloud(str(ply_path))
+        print(f"   ✓ Loaded {len(pcd.points):,} points")
+        
+        # Estimate normals if not present
+        if not pcd.has_normals():
+            print("   Computing normals...")
+            pcd.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=10.0, max_nn=30)
+            )
+            pcd.orient_normals_consistent_tangent_plane(k=15)
+        
+        # Screened Poisson reconstruction
+        print(f"   Running Screened Poisson (depth={octree_depth})...")
+        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+            pcd, depth=octree_depth, width=0, scale=1.1, linear_fit=True
+        )
+        
+        # Remove low-density vertices (cleaner results)
+        densities_array = np.asarray(densities)
+        density_threshold = np.quantile(densities_array, 0.1)
+        vertices_to_remove = densities_array < density_threshold
+        mesh.remove_vertices_by_mask(vertices_to_remove)
+        
+        print(f"   ✓ Generated mesh: {len(mesh.triangles):,} triangles")
+        
+        # Transfer colors from point cloud
+        if pcd.has_colors() and len(pcd.colors) > 0:
+            print(f"   Transferring colors from point cloud to mesh...")
+            
+            # Build KD tree for nearest neighbor color lookup
+            pcd_tree = o3d.geometry.KDTreeFlann(pcd)
+            mesh_colors = []
+            
+            for vertex in mesh.vertices:
+                [_, idx, _] = pcd_tree.search_knn_vector_3d(vertex, 1)
+                mesh_colors.append(pcd.colors[idx[0]])
+            
+            mesh.vertex_colors = o3d.utility.Vector3dVector(mesh_colors)
+            mesh.compute_vertex_normals()
+            print(f"   ✓ Colors transferred to {len(mesh.vertex_colors):,} vertices")
+        
+        # Save mesh
+        base_path = ply_path.parent / ply_path.stem
+        mesh_ply_path = Path(str(base_path) + "_screened.ply")
+        mesh_obj_path = Path(str(base_path) + "_screened.obj")
+        
+        o3d.io.write_triangle_mesh(str(mesh_ply_path), mesh)
+        o3d.io.write_triangle_mesh(str(mesh_obj_path), mesh)
+        
+        print(f"   ✓ Saved Screened Poisson mesh to:")
+        print(f"     PLY: {mesh_ply_path.name}")
+        print(f"     OBJ: {mesh_obj_path.name}")
+        
+        return mesh_ply_path, mesh_obj_path
+        
+    except Exception as e:
+        print(f"❌ Screened Poisson mesh generation failed: {e}")
+        return None, None
+
+
 def check_system_requirements():
     """
     Check if all required dependencies and system requirements are met.
@@ -1780,6 +1933,11 @@ def scan_3d_points(project_dir=None):
     global info_box_visible, ai_panel_visible, cartoon_mode
     global auto_capture_mode, auto_capture_countdown, auto_capture_count
     global curve_sample_rate, corner_max_count, canny_threshold1, canny_threshold2
+    global _quaternion_rotation
+    global rotation_step, current_angle, current_session
+    
+    # Initialize internationalization
+    _ = setup_i18n()
     
     # 🎨 Initialize Panel Display Module (lazy load)
     PanelDisplayModule = load_panel_display()
@@ -2211,7 +2369,7 @@ def scan_3d_points(project_dir=None):
         gpu_opt = None
     
     # Mesh generation method
-    mesh_method = "POISSON"  # Options: "POISSON" or "BPA"
+    mesh_method = "POISSON"  # Options: "POISSON", "BPA", "ALPHA", "SCREENED"
     
     mode_names = {
         MODE_LASER: "RED LASER",
@@ -2222,7 +2380,7 @@ def scan_3d_points(project_dir=None):
     
     print("\n" + "="*70)
     print("CONTROLS:")
-    print("  1/2/3/4 - Mode switch")
+    print("  1       - Toggle mode (Laser → Curve → Corners → AI Depth)")
     print("  SPACE   - Capture (points/photo/cloud based on mode)")
     print("  t       - Toggle capture mode (Photo <-> Point Cloud)")
     print("  f       - Process photos (AI depth → point cloud)")
@@ -2232,7 +2390,7 @@ def scan_3d_points(project_dir=None):
     print("  v       - Toggle depth viz (mode 4)")
     print("  p       - Toggle density (mode 4)")
     print("  +/-     - Curve sample rate")
-    print("  w/e     - Min depth range (mode 4)")
+    print("  w/e     - Rotation step size (modes 1-3) / Min depth (mode 4)")
     print("  Mouse   - Click & drag to set ROI")
     print("  q/ESC   - Quit")
     print("="*70)
@@ -2305,7 +2463,13 @@ def scan_3d_points(project_dir=None):
         # 🎯 CONSOLIDATED TOP-RIGHT STATUS PANEL
         # ========================================
         # This keeps all critical info visible and unobstructed by hidable panels
-        mesh_label = "Poisson" if mesh_method == "POISSON" else "BPA"
+        mesh_labels = {
+            "POISSON": "Poisson",
+            "BPA": "BPA",
+            "ALPHA": "Alpha",
+            "SCREENED": "Screened"
+        }
+        mesh_label = mesh_labels.get(mesh_method, "Poisson")
         capture_label = "POINT CLOUD" if capture_mode == CAPTURE_MODE_POINTCLOUD else "PHOTO"
         
         # Build status lines
@@ -2314,6 +2478,14 @@ def scan_3d_points(project_dir=None):
         status_lines.append(f"Points: {len(points_3d):,}")
         status_lines.append(f"Mesh: {mesh_label}")
         status_lines.append(f"Capture: {capture_label}")  # NEW: Show active capture mode
+        
+        # 3D/4D Quaternion Mode
+        if _quaternion_rotation and _quaternion_rotation != False:
+            quat_mode = _quaternion_rotation.get_mode()
+            quat_axis = _quaternion_rotation.get_axis_name()
+            status_lines.append(f"Rotation: {quat_mode} [{quat_axis}]")
+        else:
+            status_lines.append("Rotation: 3D [Y]")
         
         # Spectrum info
         spectrum_name = spectrum_presets[current_spectrum_idx]['name']
@@ -2336,6 +2508,9 @@ def scan_3d_points(project_dir=None):
         
         # Control hints
         status_lines.append("")  # Blank line
+        status_lines.append("[M] Mesh")
+        status_lines.append("[U] 3D/4D Toggle")
+        status_lines.append("[J] Cycle Axis")
         status_lines.append("[P] Spectrum")
         
         # Draw consolidated panel in TOP-RIGHT corner
@@ -2362,24 +2537,24 @@ def scan_3d_points(project_dir=None):
             # Color coding: Green for status, Cyan for spectrum, Yellow for mode-specific, Gray for hints
             if i == 3:  # Spectrum line
                 color = (255, 255, 0)  # Cyan
-            elif i >= 4 and i < len(status_lines) - 2:  # Mode-specific
+            elif i >= 4 and i < len(status_lines) - 4:  # Mode-specific
                 color = (0, 255, 255)  # Yellow
-            elif i >= len(status_lines) - 2:  # Control hints
+            elif i >= len(status_lines) - 4:  # Control hints (M, U, J, P)
                 color = (180, 180, 180)  # Gray
             else:  # Status info
                 color = (0, 255, 0)  # Green
                 
             cv2.putText(display_frame, line, 
                        (panel_x + 10, text_y + (i * 30)), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5 if i >= len(status_lines) - 2 else 0.6, 
-                       color, 1 if i >= len(status_lines) - 2 else 2)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5 if i >= len(status_lines) - 4 else 0.6, 
+                       color, 1 if i >= len(status_lines) - 4 else 2)
         
         # ========================================
         
         # 🎨 DRAW PANELS ON TOP
         scanner_params = {
             'current_angle': current_angle,
-            'rotation_step': 30.0,
+            'rotation_step': rotation_step,
             'current_session': current_session,
             'points_count': len(points_3d),
             'current_mode': mode_names[current_mode],
@@ -2652,91 +2827,20 @@ def scan_3d_points(project_dir=None):
         
         # ===== MODE SWITCHING =====
         elif key == ord('1'):
-            current_mode = MODE_LASER
+            # Toggle through all 4 modes: LASER -> CURVE -> CORNERS -> DEPTH -> LASER...
+            current_mode = (current_mode + 1) % 4
+            
+            # If switching to DEPTH mode, check if available
+            if current_mode == MODE_DEPTH:
+                DepthEstimator = get_depth_estimator()
+                if not DEPTH_AVAILABLE:
+                    print("⚠️  Depth mode unavailable - skipping to next mode")
+                    current_mode = MODE_LASER  # Skip back to laser
+            
             print(f"\n[MODE] {mode_names[current_mode]}")
-        
-        elif key == ord('2'):
-            current_mode = MODE_CURVE
-            print(f"\n[MODE] {mode_names[current_mode]}")
-        
-        elif key == ord('3'):
-            current_mode = MODE_CORNERS
-            print(f"\n[MODE] {mode_names[current_mode]}")
-        
-        elif key == ord('4'):
-            # Try to load depth estimator first
-            DepthEstimator = get_depth_estimator()
-            if DEPTH_AVAILABLE:
-                current_mode = MODE_DEPTH
-                print(f"\n[MODE] {mode_names[current_mode]}")
-            else:
-                print("❌ Depth unavailable - install PyTorch, torchvision, timm")
         
         # ===== CAPTURE (ALL MODES) =====
         elif key == ord(' '):
-            
-            # CHECK CAPTURE MODE FIRST - Photo or Point Cloud capture
-            if capture_mode == CAPTURE_MODE_PHOTO:
-                # Save current video frame (clean, without UI overlays)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
-                # Crop to ROI if enabled
-                if roi_enabled and roi_x2 > roi_x1 and roi_y2 > roi_y1:
-                    # Extract only the ROI region
-                    roi_cropped = undistorted[roi_y1:roi_y2, roi_x1:roi_x2].copy()
-                    photo_filename = SAVE_DIRECTORY / f"photo_roi_{timestamp}.jpg"
-                    cv2.imwrite(str(photo_filename), roi_cropped)
-                    roi_w = roi_x2 - roi_x1
-                    roi_h = roi_y2 - roi_y1
-                    print(f"📷 Photo saved (ROI {roi_w}x{roi_h}): {photo_filename.name}")
-                else:
-                    # Save full frame
-                    photo_filename = SAVE_DIRECTORY / f"photo_{timestamp}.jpg"
-                    cv2.imwrite(str(photo_filename), undistorted)
-                    print(f"📷 Photo saved (full frame): {photo_filename.name}")
-                continue  # Skip normal point capture
-            
-            elif capture_mode == CAPTURE_MODE_POINTCLOUD:
-                # Save point cloud 3D viewer screenshot
-                if len(points_3d) > 0:
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    print("\n📸 Capturing point cloud view...")
-                    
-                    try:
-                        o3d_module = get_open3d()
-                        if o3d_module:
-                            # Create point cloud object
-                            pcd = o3d_module.geometry.PointCloud()
-                            pcd.points = o3d_module.utility.Vector3dVector(points_3d)
-                            if points_colors:
-                                pcd.colors = o3d_module.utility.Vector3dVector(points_colors)
-                            
-                            # Set up visualizer for screenshot (headless)
-                            vis = o3d_module.visualization.Visualizer()
-                            vis.create_window(visible=False, width=1920, height=1080)
-                            vis.add_geometry(pcd)
-                            
-                            # Add coordinate frame
-                            mesh_frame = o3d_module.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
-                            vis.add_geometry(mesh_frame)
-                            
-                            # Set view
-                            vis.poll_events()
-                            vis.update_renderer()
-                            
-                            # Capture image
-                            screenshot_path = SAVE_DIRECTORY / f"pointcloud_view_{timestamp}.png"
-                            vis.capture_screen_image(str(screenshot_path))
-                            vis.destroy_window()
-                            
-                            print(f"✓ Point cloud view saved: {screenshot_path.name}")
-                        else:
-                            print("❌ Open3D not available - cannot capture point cloud view")
-                    except Exception as e:
-                        print(f"❌ Error capturing point cloud: {e}")
-                else:
-                    print("⚠️  No points captured yet - scan some points first!")
-                continue  # Skip normal point capture
             
             # NORMAL POINT CAPTURE MODE - proceed with regular scanning
             # QUALITY WARNING BEFORE CAPTURE (non-blocking)
@@ -3087,12 +3191,47 @@ def scan_3d_points(project_dir=None):
                 output_dir.mkdir(parents=True, exist_ok=True)
                 output_path = output_dir / filename
                 
-                print(f"\n💾 Saving {len(points_3d):,} points...")
+                # Apply 4D quaternion sweep if enabled
+                save_points = points_3d.copy()
+                save_colors = points_colors.copy()
+                
+                if _quaternion_rotation and _quaternion_rotation != False:
+                    if _quaternion_rotation.mode_4d:
+                        print(f"\n🔄 Applying 4D quaternion sweep...")
+                        axis = _quaternion_rotation.sweep_axis
+                        axis_name = _quaternion_rotation.get_axis_name()
+                        steps = int(360.0 / rotation_step)
+                        
+                        # Apply sweep to expand point cloud
+                        all_points = []
+                        all_colors = []
+                        
+                        for step_i in range(steps):
+                            theta = 2 * np.pi * step_i / steps
+                            w = np.cos(theta / 2)
+                            xyz = np.array(axis) * np.sin(theta / 2)
+                            q = np.array([w, *xyz])
+                            
+                            # Rotate each point
+                            for pt_idx, pt in enumerate(save_points):
+                                rotated = _quaternion_rotation.rotate_vector(q, pt)
+                                all_points.append(rotated)
+                                # Preserve color for each rotated point
+                                if pt_idx < len(save_colors):
+                                    all_colors.append(save_colors[pt_idx])
+                        
+                        save_points = all_points
+                        save_colors = all_colors
+                        print(f"   Axis: {axis_name}")
+                        print(f"   Steps: {steps}")
+                        print(f"   Points: {len(points_3d):,} → {len(save_points):,}")
+                
+                print(f"\n💾 Saving {len(save_points):,} points...")
                 
                 with open(output_path, 'w') as f:
                     f.write("ply\n")
                     f.write("format ascii 1.0\n")
-                    f.write(f"element vertex {len(points_3d)}\n")
+                    f.write(f"element vertex {len(save_points)}\n")
                     f.write("property float x\n")
                     f.write("property float y\n")
                     f.write("property float z\n")
@@ -3101,9 +3240,9 @@ def scan_3d_points(project_dir=None):
                     f.write("property uchar blue\n")
                     f.write("end_header\n")
                     
-                    for i in range(len(points_3d)):
-                        x, y, z = points_3d[i]
-                        r, g, b = points_colors[i] if i < len(points_colors) else [128, 128, 128]
+                    for i in range(len(save_points)):
+                        x, y, z = save_points[i]
+                        r, g, b = save_colors[i] if i < len(save_colors) else [128, 128, 128]
                         f.write(f"{x:.3f} {y:.3f} {z:.3f} {int(r)} {int(g)} {int(b)}\n")
                 
                 print(f"✓ Saved to {output_path}")
@@ -3113,6 +3252,10 @@ def scan_3d_points(project_dir=None):
                     generate_poisson_mesh(output_path, octree_depth=9)
                 elif mesh_method == "BPA":
                     generate_bpa_mesh(output_path, ball_radius=5.0)
+                elif mesh_method == "ALPHA":
+                    generate_alpha_mesh(output_path, alpha=10.0)
+                elif mesh_method == "SCREENED":
+                    generate_screened_poisson_mesh(output_path, octree_depth=9)
             else:
                 print("⚠️  No points to save!")
         
@@ -3143,8 +3286,18 @@ def scan_3d_points(project_dir=None):
         
         # ===== MESH METHOD TOGGLE =====
         elif key == ord('m'):
-            mesh_method = "BPA" if mesh_method == "POISSON" else "POISSON"
-            method_desc = "Ball Pivoting (faithful to data)" if mesh_method == "BPA" else "Poisson (watertight/smooth)"
+            # Cycle through all 4 mesh methods
+            mesh_cycle = ["POISSON", "BPA", "ALPHA", "SCREENED"]
+            current_idx = mesh_cycle.index(mesh_method) if mesh_method in mesh_cycle else 0
+            mesh_method = mesh_cycle[(current_idx + 1) % len(mesh_cycle)]
+            
+            method_descriptions = {
+                "POISSON": "Poisson (watertight/smooth)",
+                "BPA": "Ball Pivoting (detail preservation)",
+                "ALPHA": "Alpha Shapes (concave surfaces)",
+                "SCREENED": "Screened Poisson (sharp features)"
+            }
+            method_desc = method_descriptions[mesh_method]
             print(f"[MESH] Method: {mesh_method} - {method_desc}")
         
         # ===== DEPTH MODE CONTROLS (NEW KEYS - NO CONFLICTS!) =====
@@ -3158,15 +3311,23 @@ def scan_3d_points(project_dir=None):
                 downsample = 4 if downsample == 2 else 2
                 print(f"[DEPTH] Downsample: {downsample}x ({'SPARSE' if downsample == 4 else 'DENSE'})")
         
-        elif key == ord('w'):  # Depth min range UP
+        elif key == ord('w'):  # Depth min range UP OR Rotation step UP
             if current_mode == MODE_DEPTH:
                 min_depth_m = min(max_depth_m - 0.2, min_depth_m + 0.1)
                 print(f"[DEPTH] Min: {min_depth_m:.1f}m")
+            else:
+                # For non-depth modes, change rotation step
+                rotation_step = min(90.0, rotation_step + 5.0)
+                print(f"[ROTATION] Step size: {rotation_step}°")
         
-        elif key == ord('e'):  # Depth min range DOWN
+        elif key == ord('e'):  # Depth min range DOWN OR Rotation step DOWN
             if current_mode == MODE_DEPTH:
                 min_depth_m = max(0.1, min_depth_m - 0.1)
                 print(f"[DEPTH] Min: {min_depth_m:.1f}m")
+            else:
+                # For non-depth modes, change rotation step
+                rotation_step = max(5.0, rotation_step - 5.0)
+                print(f"[ROTATION] Step size: {rotation_step}°")
         
         elif key == ord('r'):  # NEW: Depth max range UP
             if current_mode == MODE_DEPTH:
@@ -3219,6 +3380,38 @@ def scan_3d_points(project_dir=None):
         
         elif key == ord('g'):  # Show spectrum guide
             SpectrumAnalyzer.show_spectrum_guide()
+        
+        # ===== 3D/4D QUATERNION ROTATION TOGGLE =====
+        elif key == ord('u'):  # Toggle 3D/4D mode
+            if _quaternion_rotation is None:
+                try:
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        "quaternion_rotation",
+                        os.path.join(os.path.dirname(__file__), "Quaternion_ Rotations_Point _Clouds.py")
+                    )
+                    _quaternion_rotation = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(_quaternion_rotation)
+                    print("✅ Quaternion rotation module loaded")
+                except Exception as e:
+                    print(f"❌ Could not load quaternion rotation: {e}")
+                    _quaternion_rotation = False
+            
+            if _quaternion_rotation:
+                _quaternion_rotation.toggle_4d_mode()
+                mode = _quaternion_rotation.get_mode()
+                axis = _quaternion_rotation.get_axis_name()
+                print(f"🔄 Mode: {mode} | Axis: {axis}")
+        
+        elif key == ord('j'):  # Cycle rotation axis X->Y->Z
+            if _quaternion_rotation and _quaternion_rotation != False:
+                axis = _quaternion_rotation.cycle_sweep_axis()
+                mode = _quaternion_rotation.get_mode()
+                print(f"🔄 Axis: {axis} ({mode} mode)")
+        
+        elif key == ord('y'):  # Toggle rotation (capture angle tracking)
+            current_angle = (current_angle + rotation_step) % 360
+            print(f"🔄 Rotation angle: {current_angle}°")
     
     # Cleanup
     cap.release()

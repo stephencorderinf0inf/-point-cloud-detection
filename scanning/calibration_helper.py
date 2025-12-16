@@ -134,33 +134,41 @@ def prompt_calibration_setup():
     print("=" * 70)
     
     print("\nCamera calibration improves 3D measurement accuracy.")
-    print("\nYou have two options:")
-    print("\n  [1] CALIBRATE NOW (Recommended)")
-    print("      • Generates a printable checkerboard pattern")
-    print("      • Takes 5-10 minutes")
-    print("      • Provides accurate measurements")
+    print("\nYou have three options:")
+    print("\n  [1] SINGLE CHECKERBOARD CALIBRATION (Recommended First)")
+    print("      • Uses one standard checkerboard pattern")
+    print("      • Easier and faster (5-10 minutes)")
+    print("      • Good for general use")
     
-    print("\n  [2] SKIP CALIBRATION (Not Recommended)")
+    print("\n  [2] DUAL CHECKERBOARD CALIBRATION (Advanced)")
+    print("      • Uses two checkerboards for better accuracy")
+    print("      • Takes longer (10-15 minutes)")
+    print("      • Best for precision 3D measurements")
+    print("      • Recommended AFTER doing single calibration first")
+    
+    print("\n  [3] SKIP CALIBRATION (Not Recommended)")
     print("      • Uses generic camera parameters")
     print("      • Lower accuracy")
     print("      • 3D coordinates may be incorrect")
     
-    print("\n  [3] EXIT")
+    print("\n  [4] EXIT")
     print("      • Exit the program")
     
     while True:
-        choice = input("\n👉 Select option (1-3): ").strip()
+        choice = input("\n👉 Select option (1-4): ").strip()
         
         if choice == '1':
-            return 'calibrate'
+            return 'calibrate_single'
         elif choice == '2':
+            return 'calibrate_dual'
+        elif choice == '3':
             confirm = input("\n⚠️  Are you sure? This will reduce accuracy. (y/N): ").strip().lower()
             if confirm == 'y':
                 return 'skip'
-        elif choice == '3':
+        elif choice == '4':
             return 'exit'
         else:
-            print("❌ Invalid choice. Please enter 1, 2, or 3.")
+            print("❌ Invalid choice. Please enter 1, 2, 3, or 4.")
 
 
 def setup_calibration():
@@ -189,15 +197,15 @@ def setup_calibration():
         print("   3D measurements will be LESS ACCURATE")
         return False
     
-    elif choice == 'calibrate':
+    elif choice == 'calibrate_single':
         print("\n" + "=" * 70)
-        print("🎯 SETTING UP CALIBRATION")
+        print("🎯 SETTING UP SINGLE CHECKERBOARD CALIBRATION")
         print("=" * 70)
         
         # Generate checkerboard pattern
         pattern_path = generate_checkerboard_pattern()
         
-        print("\n📋 CALIBRATION STEPS:")
+        print("\n📋 SINGLE CHECKERBOARD CALIBRATION STEPS:")
         print("-" * 70)
         print(f"\n1. PRINT the checkerboard pattern:")
         print(f"   File: {pattern_path}")
@@ -205,7 +213,7 @@ def setup_calibration():
         print(f"   • Use white paper, black ink")
         print(f"   • Attach to flat, rigid surface (cardboard/foam board)")
         
-        print("\n2. RUN the calibration script:")
+        print("\n2. RUN the single checkerboard calibration script:")
         calib_script = Path(__file__).parent.parent / 'dual_checkerboard_3d' / 'checkerboard.py'
         print(f"   python {calib_script.name}")
         
@@ -218,6 +226,78 @@ def setup_calibration():
         
         print("\n4. RESTART this scanner after calibration")
         
+        print("\n💡 TIP: After completing single calibration, you can optionally")
+        print("   run dual calibration for even better accuracy.")
+        
+        print("\n" + "=" * 70)
+        
+        # Ask if user wants to proceed
+        proceed = input("\n👉 Ready to start calibration? (y/N): ").strip().lower()
+        
+        if proceed == 'y':
+            print("\n🚀 Starting calibration process...")
+            print("   Follow the instructions in the calibration window")
+            print("   Press CTRL+C here to cancel anytime\n")
+            return True
+        else:
+            print("\n⚠️  Calibration cancelled - using default parameters")
+            return False
+    
+    elif choice == 'calibrate_dual':
+        print("\n" + "=" * 70)
+        print("🎯 SETTING UP DUAL CHECKERBOARD CALIBRATION")
+        print("=" * 70)
+        
+        print("\n⚠️  IMPORTANT: Dual checkerboard calibration requires:")
+        print("   • TWO printed checkerboard patterns")
+        print("   • Both patterns mounted on rigid, flat surfaces")
+        print("   • Patterns placed at a known distance/angle")
+        
+        # Generate checkerboard pattern
+        pattern_path = generate_checkerboard_pattern()
+        
+        print("\n📋 DUAL CHECKERBOARD CALIBRATION STEPS:")
+        print("-" * 70)
+        print(f"\n1. PRINT TWO copies of the checkerboard pattern:")
+        print(f"   File: {pattern_path}")
+        print(f"   • Print at 100% scale (no scaling/fit to page)")
+        print(f"   • Use white paper, black ink")
+        print(f"   • Attach each to flat, rigid surface")
+        
+        print("\n2. ARRANGE the two checkerboards:")
+        print("   • Place them at right angles (90°) to each other")
+        print("   • OR place them parallel at a known distance")
+        print("   • Keep them stable and well-lit")
+        
+        print("\n3. RUN the dual checkerboard calibration script:")
+        calib_script = Path(__file__).parent.parent / 'dual_checkerboard_3d' / 'checkerboard.py'
+        print(f"   python {calib_script.name} --dual")
+        
+        print("\n4. CAPTURE 20-30 images with BOTH patterns visible:")
+        print("   • Both patterns must be in frame together")
+        print("   • Capture from different angles")
+        print("   • Keep both patterns fully visible")
+        print("   • Press SPACE to capture each image")
+        print("   • Press Q when done")
+        
+        print("\n5. RESTART this scanner after calibration")
+        
+        print("\n💡 RECOMMENDATION: If this is your first time, start with")
+        print("   SINGLE checkerboard calibration (option 1) first!")
+        
+        print("\n" + "=" * 70)
+        
+        # Ask if user wants to proceed
+        proceed = input("\n👉 Ready to start dual calibration? (y/N): ").strip().lower()
+        
+        if proceed == 'y':
+            print("\n🚀 Starting dual calibration process...")
+            print("   Follow the instructions in the calibration window")
+            print("   Press CTRL+C here to cancel anytime\n")
+            return True
+        else:
+            print("\n⚠️  Calibration cancelled - using default parameters")
+            return False
         print("\n" + "=" * 70)
         
         # Ask if user wants to run calibration now
