@@ -1,13 +1,13 @@
 """
 Monocular Depth Estimation Module
 ==================================
-AI-powered depth estimation using MiDaS for dense 3D reconstruction.
+AI-powered depth estimation using Depth Anything V2 for dense 3D reconstruction.
 Compatible with laser_3d_scanner_advanced.py
 
 Usage:
     from depth_estimator import DepthEstimator
     
-    estimator = DepthEstimator("DPT_Large")
+    estimator = DepthEstimator("vits")
     depth_map = estimator.estimate_depth(rgb_image)
     points, colors = estimator.depth_to_point_cloud(rgb_image, depth_map, K)
 """
@@ -17,122 +17,147 @@ import numpy as np
 import torch
 from pathlib import Path
 import time
-import urllib.error
+import sys
+import os
+
+# ========== MSIX-COMPATIBLE PATHS ==========
+# Find bundled depth_anything_v2 module relative to this file
+MODULE_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = MODULE_DIR.parent.parent.parent  # Up to scripts/graphene root
+
+# Try multiple possible locations for Depth Anything V2
+DEPTH_PATHS = [
+    MODULE_DIR / "depth_anything_v2",  # Bundled with scanning tools
+    PROJECT_ROOT / "depth_anything_v2",  # In graphene root
+    Path("D:/Users/Planet UI/world_folder/projects/Depth-Anything-V2"),  # Development path
+]
+
+DEPTH_ANYTHING_PATH = None
+for path in DEPTH_PATHS:
+    if path.exists():
+        DEPTH_ANYTHING_PATH = path
+        sys.path.insert(0, str(path.parent))  # Add parent to path
+        break
+
+# Import Depth Anything V2
+try:
+    from depth_anything_v2.dpt import DepthAnythingV2
+    DEPTH_V2_AVAILABLE = True
+except ImportError:
+    DepthAnythingV2 = None
+    DEPTH_V2_AVAILABLE = False
 
 
 class DepthEstimator:
-    """Estimate depth from a single RGB image using MiDaS."""
+    """Estimate depth from a single RGB image using Depth Anything V2."""
     
     # Available models
     MODELS = {
-        'small': 'MiDaS_small',      # Fast, less accurate
-        'medium': 'DPT_Hybrid',       # Balanced
-        'large': 'DPT_Large'          # Slow, most accurate
+        'small': 'vits',      # Fast, good accuracy
+        'medium': 'vitb',     # Balanced
+        'large': 'vitl'       # Best accuracy, slower
     }
     
-    def __init__(self, model_type="DPT_Large", max_retries=3, timeout=60):
+    def __init__(self, model_type="vits", max_retries=3, timeout=60):
         """
-        Load MiDaS depth estimation model with retry logic.
+        Load Depth Anything V2 depth estimation model.
         
         Args:
-            model_type: "MiDaS_small", "DPT_Hybrid", or "DPT_Large"
+            model_type: "vits", "vitb", or "vitl"
                        Can also use shortcuts: "small", "medium", "large"
-            max_retries: Number of retry attempts for model download
-            timeout: Timeout in seconds for model download
+            max_retries: Unused (kept for compatibility)
+            timeout: Unused (kept for compatibility)
         """
         # Handle shortcuts
         if model_type.lower() in self.MODELS:
             model_type = self.MODELS[model_type.lower()]
         
         print("\n" + "=" * 70)
-        print("📊 LOADING DEPTH ESTIMATION MODEL")
+        print("📊 LOADING DEPTH ESTIMATION MODEL - DEPTH ANYTHING V2")
         print("=" * 70)
         
         self.model_type = model_type
-        self.midas = None
-        self.transform = None
+        self.model = None
         
-        # Try loading with retries
-        for attempt in range(1, max_retries + 1):
-            try:
-                print(f"Loading model: {model_type}... (attempt {attempt}/{max_retries})")
-                
-                # Load model with timeout
-                self.midas = torch.hub.load(
-                    "intel-isl/MiDaS", 
-                    model_type, 
-                    trust_repo=True,
-                    timeout=timeout
-                )
-                
-                self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                self.midas.to(self.device)
-                self.midas.eval()
-                
-                # Load transforms (no timeout parameter for transforms)
-                midas_transforms = torch.hub.load(
-                    "intel-isl/MiDaS", 
-                    "transforms", 
-                    trust_repo=True
-                )
-                
-                if "DPT" in model_type:
-                    self.transform = midas_transforms.dpt_transform
-                else:
-                    self.transform = midas_transforms.small_transform
-                
-                print(f"✓ Model loaded: {self.model_type}")
-                print(f"✓ Device: {self.device}")
-                print(f"✓ GPU available: {torch.cuda.is_available()}")
-                if torch.cuda.is_available():
-                    print(f"✓ GPU name: {torch.cuda.get_device_name(0)}")
-                print("=" * 70)
-                
-                # Success! Break out of retry loop
+        # Model configurations
+        model_configs = {
+            'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+            'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+            'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]}
+        }
+        
+        # Check if model is available
+        if not DEPTH_V2_AVAILABLE or DEPTH_ANYTHING_PATH is None:
+            print(f"❌ Depth Anything V2 module not found")
+            print(f"   Searched: {', '.join(str(p) for p in DEPTH_PATHS)}")
+            print("\n💡 To bundle for MSIX:")
+            print("   1. Copy depth_anything_v2/ folder to camera_tools/scanning/")
+            print("   2. Copy checkpoint .pth file to camera_tools/scanning/models/")
+            raise FileNotFoundError(f"Depth Anything V2 not found in bundled locations")
+        
+        # Try multiple checkpoint locations (bundled, external, development)
+        checkpoint_locations = [
+            MODULE_DIR / 'models' / f'depth_anything_v2_{model_type}.pth',  # Bundled
+            DEPTH_ANYTHING_PATH / 'checkpoints' / f'depth_anything_v2_{model_type}.pth',  # Module dir
+            DEPTH_ANYTHING_PATH.parent / 'checkpoints' / f'depth_anything_v2_{model_type}.pth',  # External
+        ]
+        
+        checkpoint_path = None
+        for loc in checkpoint_locations:
+            if loc.exists():
+                checkpoint_path = loc
                 break
-                
-            except urllib.error.HTTPError as e:
-                if e.code == 504:
-                    print(f"  ⚠️  Gateway timeout (attempt {attempt}/{max_retries})")
-                    if attempt < max_retries:
-                        print(f"  ⏳ Retrying in 5 seconds...")
-                        time.sleep(5)
-                    else:
-                        print(f"\n❌ Error loading model after {max_retries} attempts: {e}")
-                        self._print_fallback_instructions()
-                        raise
-                else:
-                    print(f"❌ HTTP Error {e.code}: {e.reason}")
-                    self._print_fallback_instructions()
-                    raise
-                    
-            except Exception as e:
-                print(f"  ⚠️  Error on attempt {attempt}: {e}")
-                if attempt < max_retries:
-                    print(f"  ⏳ Retrying in 5 seconds...")
-                    time.sleep(5)
-                else:
-                    print(f"\n❌ Error loading model after {max_retries} attempts: {e}")
-                    self._print_fallback_instructions()
-                    raise
+        
+        if checkpoint_path is None:
+            print(f"❌ Model checkpoint not found: depth_anything_v2_{model_type}.pth")
+            print(f"   Searched locations:")
+            for loc in checkpoint_locations:
+                print(f"   - {loc}")
+            print(f"\n💡 Download from:")
+            print(f"   https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_{model_type}.pth")
+            print(f"\n   Save to: {checkpoint_locations[0]}")
+            raise FileNotFoundError(f"Checkpoint not found in any location")
+        
+        print(f"\n✅ Loading model: {model_type}")
+        print(f"   Checkpoint: {checkpoint_path.name}")
+        
+        # Detect device
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f"   Device: {self.device.type.upper()}")
+        
+        # Load model
+        try:
+            self.model = DepthAnythingV2(**model_configs[model_type])
+            self.model.load_state_dict(torch.load(str(checkpoint_path), map_location=self.device))
+            self.model = self.model.to(self.device).eval()
+            
+            print(f"\n✅ Model loaded successfully!")
+            print(f"✅ GPU available: {torch.cuda.is_available()}")
+            if torch.cuda.is_available():
+                print(f"✅ GPU name: {torch.cuda.get_device_name(0)}")
+            print("=" * 70)
+            
+        except Exception as e:
+            print(f"❌ Error loading model: {e}")
+            self._print_fallback_instructions()
+            raise
     
     def _print_fallback_instructions(self):
         """Print instructions for manual model download or alternative solutions."""
         print("\n💡 SOLUTIONS:")
         print("=" * 70)
-        print("\n1. RETRY: Run the script again (network may be temporarily down)")
-        print("\n2. MANUAL DOWNLOAD:")
-        print("   a) Download model from:")
-        print("      https://github.com/isl-org/MiDaS/releases")
-        print("   b) For MiDaS_small, get: midas_v21_small_256.pt")
-        print("   c) Place in: ~/.cache/torch/hub/checkpoints/")
-        print("   d) Or Windows: C:\\Users\\<username>\\.cache\\torch\\hub\\checkpoints\\")
+        print("\n1. CLONE DEPTH ANYTHING V2:")
+        print("   cd D:/Users/Planet UI/world_folder/projects/")
+        print("   git clone https://github.com/DepthAnything/Depth-Anything-V2")
+        print("\n2. DOWNLOAD CHECKPOINT:")
+        print("   Download from HuggingFace:")
+        print(f"   https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_{self.model_type}.pth")
+        print(f"   Save to: {DEPTH_ANYTHING_PATH / 'checkpoints'}")
         print("\n3. INSTALL DEPENDENCIES:")
-        print("   pip install torch torchvision")
-        print("   pip install timm")
+        print("   pip install torch torchvision opencv-python")
         print("\n4. USE LIGHTWEIGHT MODE:")
         print("   Scanner can run WITHOUT depth estimation")
-        print("   Comment out depth estimator import in scanner")
+        print("   Just skip MODE_DEPTH (press 1, 2, or 3 for other modes)")
         print("=" * 70)
     
     def estimate_depth(self, rgb_image):
@@ -148,28 +173,14 @@ class DepthEstimator:
         # Convert BGR to RGB
         rgb = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
         
-        # Transform for model input
-        input_batch = self.transform(rgb).to(self.device)
-        
-        # Predict depth
+        # Predict depth using Depth Anything V2
         with torch.no_grad():
-            prediction = self.midas(input_batch)
-            
-            # Resize to original resolution
-            prediction = torch.nn.functional.interpolate(
-                prediction.unsqueeze(1),
-                size=rgb.shape[:2],
-                mode="bicubic",
-                align_corners=False,
-            ).squeeze()
-        
-        # Convert to numpy
-        depth_map = prediction.cpu().numpy()
+            depth = self.model.infer_image(rgb)
         
         # Normalize to 0-1 (inverse depth - closer = smaller values)
-        depth_min = depth_map.min()
-        depth_max = depth_map.max()
-        depth_map = (depth_map - depth_min) / (depth_max - depth_min + 1e-8)
+        depth_min = depth.min()
+        depth_max = depth.max()
+        depth_map = (depth - depth_min) / (depth_max - depth_min + 1e-8)
         
         return depth_map
     
@@ -246,19 +257,20 @@ class DepthEstimator:
     def show_model_guide():
         """Print model selection guide."""
         print("\n" + "=" * 70)
-        print("🤖 DEPTH ESTIMATION MODEL GUIDE")
+        print("🤖 DEPTH ESTIMATION MODEL GUIDE - DEPTH ANYTHING V2")
         print("=" * 70)
         print("\nAvailable Models:")
-        print("  'small'  (MiDaS_small)  - Fast, lower accuracy (~30 FPS)")
-        print("  'medium' (DPT_Hybrid)   - Balanced (~10 FPS)")
-        print("  'large'  (DPT_Large)    - Best accuracy, slower (~3 FPS)")
+        print("  'small'  (vits)  - Fast, good accuracy (~25 FPS)")
+        print("  'medium' (vitb)  - Balanced (~12 FPS)")
+        print("  'large'  (vitl)  - Best accuracy (~5 FPS)")
         print("\nRecommended Settings:")
         print("  Real-time preview:  'small' with downsample=4")
-        print("  Quality capture:    'large' with downsample=2")
-        print("  Balanced:           'medium' with downsample=2")
+        print("  Quality capture:    'medium' with downsample=2")
+        print("  Best quality:       'large' with downsample=1")
         print("\nGPU Requirements:")
-        print("  VRAM needed: small=1GB, medium=2GB, large=4GB")
+        print("  VRAM needed: small=1GB, medium=2GB, large=3GB")
         print("  CPU fallback available (slower)")
+        print("\n✅ V2 Benefits: Better than MiDaS, no torch.hub, easy packaging!")
         print("=" * 70)
     
     def get_info(self):
@@ -460,7 +472,7 @@ def test_depth_estimator(image_path=None):
             print("   1. Plug in your camera")
             print("   2. Make sure no other app is using it")
             print("   3. Run with an image instead:")
-            print('      python depth_estimator.py "C:\\Users\\steph\\Downloads\\image.jpg"')
+            print('      python depth_estimator.py "C:\\Users\\YourName\\Downloads\\image.jpg"')
             return
         
         # Configure camera

@@ -37,21 +37,20 @@ def get_depth_estimator():
         try:
             import torch
             import torchvision
-            import timm
-        except ImportError as e:
-            module_name = str(e).split("'")[1] if "'" in str(e) else "required module"
-            print(f"⚠️  Depth estimation unavailable: {module_name} not installed")
-            print(f"   Install with: pip install torch torchvision timm")
+        except (ImportError, OSError) as e:
+            module_name = str(e).split("'")[1] if "'" in str(e) else "PyTorch/dependencies"
+            print(f"⚠️  Depth estimation unavailable: {module_name} not available")
             DEPTH_AVAILABLE = False
             _depth_estimator = None
             return None
         
-        # PyTorch available, now try to load depth_estimator module
+        # PyTorch available, now try to load depth_estimator module (Depth Anything V2)
         try:
             from depth_estimator import DepthEstimator
             DEPTH_AVAILABLE = True
-            _depth_estimator = DepthEstimator()  # Create instance
-            print("✅ Depth estimation module loaded successfully")
+            # Don't create instance here - let load_depth_model() do it
+            _depth_estimator = DepthEstimator
+            print("✅ Depth Anything V2 module loaded successfully")
         except Exception as e:
             print(f"⚠️  Depth estimator failed to load: {e}")
             DEPTH_AVAILABLE = False
@@ -82,14 +81,21 @@ try:
     sys.path.insert(0, str(ai_analysis_path))
 
     # Add scanning path for profiler/gpu_optimizer
-    scanning_path = Path(__file__).parent
+    # Detect if running as PyInstaller bundle
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        bundle_dir = Path(sys._MEIPASS)
+        scanning_path = bundle_dir
+        calibration_dir = bundle_dir / 'dual_checkerboard_3d' / 'calibration'
+    else:
+        # Running as normal Python script
+        scanning_path = Path(__file__).parent
+        calibration_dir = Path(__file__).parent.parent / 'dual_checkerboard_3d' / 'calibration'
+    
     sys.path.insert(0, str(scanning_path))
 
     # ✅ FIXED: Dynamic calibration path resolution
     import calibration.camera_distance_detector_calibrated
-    
-    # Build calibration directory path (relative to script)
-    calibration_dir = Path(__file__).parent.parent / 'dual_checkerboard_3d' / 'calibration'
     
     # Function to detect camera and find matching calibration
     def find_calibration_file():
@@ -278,13 +284,28 @@ def load_ai_modules():
         global get_camera_info, analyze_image_quality, save_analysis_result
         global finalize_session, OptimizedAIAnalyzer
         
-        from camera_info import get_camera_info
-        from image_quality import analyze_image_quality
-        from results_storage import save_analysis_result, finalize_session
-        from optimized_analyzer import OptimizedAIAnalyzer
-        
-        _ai_modules_loaded = True
-        print("✓ AI modules loaded")
+        try:
+            # Add ai_analysis to path for bundled executable
+            if getattr(sys, 'frozen', False):
+                ai_analysis_path = os.path.join(sys._MEIPASS, 'ai_analysis')
+                if ai_analysis_path not in sys.path:
+                    sys.path.insert(0, ai_analysis_path)
+            
+            from camera_info import get_camera_info
+            from image_quality import analyze_image_quality
+            from results_storage import save_analysis_result, finalize_session
+            from optimized_analyzer import OptimizedAIAnalyzer
+            _ai_modules_loaded = True
+            print("✓ AI modules loaded")
+        except ImportError as e:
+            print(f"⚠️  AI analysis error: {e}")
+            # Set dummy functions to avoid crashes
+            get_camera_info = lambda *args, **kwargs: {}
+            analyze_image_quality = lambda *args, **kwargs: {}
+            save_analysis_result = lambda *args, **kwargs: None
+            finalize_session = lambda *args, **kwargs: None
+            OptimizedAIAnalyzer = None
+            _ai_modules_loaded = True  # Mark as loaded to avoid repeated attempts
 
 def load_performance_modules():
     """Load performance monitoring modules only when needed."""
@@ -821,7 +842,7 @@ def auto_capture_3_points(cap, current_mode, new_camera_matrix, points_3d,
     if point_sessions is None:
         point_sessions = []
     
-    window_name = "Bosch GLm 42 Scanner (635nm)"
+    window_name = "Infinity GEMs"
     
     for capture_num in range(1, 4):  # 3 captures
         print(f"\n[AUTO-CAPTURE {capture_num}/3] Capturing...")
@@ -981,7 +1002,7 @@ def auto_capture_3_points_with_module(cap, points_3d, calibration_data, frame_wi
     """
     # Initialize auto-capture module
     auto_capture = AutoCaptureModule(
-        window_name="Bosch GLM 42 Scanner",
+        window_name="Infinity GEMs",
         capture_count=3,
         interval_seconds=1.0
     )
@@ -1202,103 +1223,7 @@ def open_in_meshlab(file_path):
         return False
 
 
-def visualize_point_cloud_3d(points_3d, points_colors=None, window_name="3D Point Cloud Viewer", width=1280, height=720):
-    """
-    Launch interactive Open3D 3D viewer for current point cloud.
-    
-    Args:
-        points_3d: Nx3 numpy array of 3D points
-        points_colors: Nx3 numpy array of RGB colors (0-255)
-        window_name: Name of the viewer window
-        width: Window width to match camera feed
-        height: Window height to match camera feed
-    """
-    o3d = get_open3d()
-    if o3d is None:
-        print("⚠️  Open3D not installed - 3D viewer unavailable")
-        print("   Install with: pip install open3d")
-        return
-    
-    if len(points_3d) == 0:
-        print("⚠️  No points to visualize!")
-        return
-    
-    try:
-        print(f"\n🎨 Launching 3D viewer with {len(points_3d):,} points...")
-        
-        # Create point cloud object
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(points_3d)
-        
-        # Add colors if available
-        if points_colors is not None and len(points_colors) == len(points_3d):
-            colors_normalized = np.array(points_colors) / 255.0
-            pcd.colors = o3d.utility.Vector3dVector(colors_normalized)
-        else:
-            # Default gradient coloring by height (Z-axis)
-            z_values = points_3d[:, 2]
-            z_min, z_max = z_values.min(), z_values.max()
-            if z_max > z_min:
-                normalized_z = (z_values - z_min) / (z_max - z_min)
-                # Blue (low) to Red (high) gradient
-                colors = np.zeros((len(points_3d), 3))
-                colors[:, 0] = normalized_z  # Red channel
-                colors[:, 2] = 1.0 - normalized_z  # Blue channel
-                pcd.colors = o3d.utility.Vector3dVector(colors)
-        
-        # Create coordinate frame for reference
-        coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-            size=50.0, origin=[0, 0, 0]
-        )
-        
-        # Visualization settings
-        print("\n📊 3D Viewer Controls:")
-        print("   • Mouse Left: Rotate view")
-        print("   • Mouse Right: Pan view")
-        print("   • Mouse Wheel: Zoom in/out")
-        print("   • Ctrl + Mouse Left: Roll view")
-        print("   • H: Show/hide coordinate frame")
-        print("   • R: Reset viewpoint")
-        print("   • Q/ESC: Close viewer\n")
-        
-        # Position 3D viewer in top-right corner to avoid interfering with main window
-        try:
-            import tkinter as tk
-            root = tk.Tk()
-            screen_width = root.winfo_screenwidth()
-            root.destroy()
-            
-            # Position in top-right corner with some margin
-            viewer_left = screen_width - width - 50
-            viewer_top = 50
-        except:
-            viewer_left = 50
-            viewer_top = 50
-        
-        # Launch visualizer (suppress GLFW context warnings on close)
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=Warning)
-            o3d.visualization.draw_geometries(
-                [pcd, coord_frame],
-                window_name=window_name,
-                width=width,
-                height=height,
-                left=viewer_left,
-                top=viewer_top,
-                point_show_normal=False,
-                mesh_show_wireframe=False,
-                mesh_show_back_face=False
-            )
-        
-        # Allow OpenGL context to cleanup properly
-        import time
-        time.sleep(0.1)
-        
-        print("✓ 3D viewer closed")
-        
-    except Exception as e:
-        print(f"❌ Visualization error: {e}")
+
 
 
 def generate_poisson_mesh(ply_path, octree_depth=9):
@@ -1659,6 +1584,18 @@ def check_system_requirements():
     Check if all required dependencies and system requirements are met.
     Returns True if all checks pass, False otherwise.
     """
+    import sys
+    import platform
+    
+    # If running as PyInstaller bundle, skip strict checks (dependencies already bundled)
+    if getattr(sys, 'frozen', False):
+        print("\n" + "="*80)
+        print("🔍 BUNDLED EXECUTABLE - Skipping dependency checks")
+        print("="*80)
+        print("✅ Running as standalone executable")
+        print("✅ All dependencies bundled")
+        return True
+    
     print("\n" + "="*80)
     print("🔍 SYSTEM REQUIREMENTS CHECK")
     print("="*80)
@@ -1666,8 +1603,6 @@ def check_system_requirements():
     all_checks_passed = True
     
     # 1. Python version check
-    import sys
-    import platform
     python_version = sys.version_info
     print(f"\n📌 Python Version: {python_version.major}.{python_version.minor}.{python_version.micro}")
     if python_version < (3, 8):
@@ -1738,6 +1673,7 @@ def check_system_requirements():
     
     # 5. PyTorch check (for depth estimation)
     print("\n📌 PyTorch (for AI depth estimation)")
+    global torch_available
     torch_available = False
     try:
         import torch
@@ -1751,20 +1687,19 @@ def check_system_requirements():
             print("   ℹ️  No CUDA GPU (CPU only - depth estimation will be slower)")
         
         torch_available = True
-    except ImportError:
-        print("   ❌ PyTorch not found")
-        print("   Install: pip install torch torchvision")
-        print("   ⚠️  AI depth estimation will be DISABLED")
+    except (ImportError, OSError) as e:
+        print("   ⚠️  PyTorch not available (AI depth estimation DISABLED)")
+        print(f"   Reason: {type(e).__name__}")
+        # Don't fail - continue without PyTorch
     
     # 6. torchvision check
     print("\n📌 torchvision (for depth estimation)")
     try:
         import torchvision
         print(f"   ✅ torchvision {torchvision.__version__} installed")
-    except ImportError:
-        print("   ❌ torchvision not found")
-        print("   Install: pip install torchvision")
-        print("   ⚠️  Required for depth estimation")
+    except (ImportError, OSError):
+        print("   ⚠️  torchvision not available")
+        # Don't fail - continue without torchvision
     
     # 7. timm check (required for DPT models)
     print("\n📌 timm (for MiDaS DPT models)")
@@ -1772,10 +1707,9 @@ def check_system_requirements():
         import timm
         print(f"   ✅ timm {timm.__version__} installed")
         print("   ✓ DPT_Large and DPT_Hybrid models supported")
-    except ImportError:
-        print("   ❌ timm not found")
-        print("   Install: pip install timm")
-        print("   ⚠️  Only MiDaS_small model will work without timm")
+    except (ImportError, OSError):
+        print("   ⚠️  timm not available (only small models will work)")
+        # Don't fail - continue without timm
     
     # 8. MiDaS model accessibility check
     print("\n📌 MiDaS Depth Model")
@@ -1940,8 +1874,16 @@ def scan_3d_points(project_dir=None):
     _ = setup_i18n()
     
     # 🎨 Initialize Panel Display Module (lazy load)
+    # Check if depth mode should be available first
+    # Force depth estimator check to set DEPTH_AVAILABLE
+    get_depth_estimator()  # This will set DEPTH_AVAILABLE
+    depth_mode_enabled = not getattr(sys, 'frozen', False) and DEPTH_AVAILABLE
+    
     PanelDisplayModule = load_panel_display()
-    panel_display = PanelDisplayModule(window_name="Bosch GLM 42 Scanner (635nm)")
+    panel_display = PanelDisplayModule(
+        window_name="Infinity GEMs",
+        show_depth_mode=depth_mode_enabled
+    )
     
     # Override print to also send to message bar
     _original_print = print
@@ -2278,7 +2220,7 @@ def scan_3d_points(project_dir=None):
     )
     
     # Create window - use WINDOW_NORMAL for consistent sizing control
-    window_name = "Bosch GLM 42 Scanner (635nm)"
+    window_name = "Infinity GEMs"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     
     # Get actual camera resolution
@@ -2371,20 +2313,33 @@ def scan_3d_points(project_dir=None):
     # Mesh generation method
     mesh_method = "POISSON"  # Options: "POISSON", "BPA", "ALPHA", "SCREENED"
     
-    mode_names = {
-        MODE_LASER: "RED LASER",
-        MODE_CURVE: "CURVE TRACE",
-        MODE_CORNERS: "CORNERS",
-        MODE_DEPTH: "AI DEPTH"
-    }
+    # depth_mode_enabled was already set earlier during panel initialization
+    # Use it to configure mode names and help text
+    
+    if depth_mode_enabled:
+        mode_names = {
+            MODE_LASER: "RED LASER",
+            MODE_CURVE: "CURVE TRACE",
+            MODE_CORNERS: "CORNERS",
+            MODE_DEPTH: "AI DEPTH"
+        }
+        mode_help_text = "  1       - Toggle mode (Laser → Curve → Corners → AI Depth)"
+        max_mode = 3
+    else:
+        mode_names = {
+            MODE_LASER: "RED LASER",
+            MODE_CURVE: "CURVE TRACE",
+            MODE_CORNERS: "CORNERS"
+        }
+        mode_help_text = "  1       - Toggle mode (Laser → Curve → Corners)"
+        max_mode = 2
     
     print("\n" + "="*70)
     print("CONTROLS:")
-    print("  1       - Toggle mode (Laser → Curve → Corners → AI Depth)")
+    print(mode_help_text)
     print("  SPACE   - Capture (points/photo/cloud based on mode)")
     print("  t       - Toggle capture mode (Photo <-> Point Cloud)")
     print("  f       - Process photos (AI depth → point cloud)")
-    print("  o       - Open 3D viewer")
     print("  s       - Save PLY + mesh")
     print("  c       - Clear ROI (Region of Interest)")
     print("  v       - Toggle depth viz (mode 4)")
@@ -2794,27 +2749,10 @@ def scan_3d_points(project_dir=None):
                                 print("   ✓ MeshLab opened successfully")
                             else:
                                 print("   ❌ Failed to launch MeshLab")
-                        elif view_choice == 'o':
-                            print("   🎯 Opening basic 3D viewer...")
-                            visualize_point_cloud_3d(
-                                points_3d_img, points_colors_img,
-                                window_name=f"{img_path.stem} - {len(points_3d_img):,} points"
-                            )
                     else:
-                        # MeshLab not found - only offer Open3D
+                        # MeshLab not found
                         print("   💡 Install MeshLab for professional analysis:")
                         print("      https://www.meshlab.net/")
-                        print("\n   [O] Quick preview in Open3D")
-                        print("   [N] Skip viewing")
-                        print("\n   Choice (o/n): ", end='')
-                        view_choice = input().strip().lower()
-                        
-                        if view_choice == 'o':
-                            print("   🎯 Opening basic 3D viewer...")
-                            visualize_point_cloud_3d(
-                                points_3d_img, points_colors_img,
-                                window_name=f"{img_path.stem} - {len(points_3d_img):,} points"
-                            )
                 
                 print("\n" + "="*70)
                 print(f"✅ Photo processing complete! Returning to scanner...")
@@ -2827,22 +2765,49 @@ def scan_3d_points(project_dir=None):
         
         # ===== MODE SWITCHING =====
         elif key == ord('1'):
-            # Toggle through all 4 modes: LASER -> CURVE -> CORNERS -> DEPTH -> LASER...
-            current_mode = (current_mode + 1) % 4
-            
-            # If switching to DEPTH mode, check if available
-            if current_mode == MODE_DEPTH:
-                DepthEstimator = get_depth_estimator()
-                if not DEPTH_AVAILABLE:
-                    print("⚠️  Depth mode unavailable - skipping to next mode")
-                    current_mode = MODE_LASER  # Skip back to laser
-            
+            # Toggle through available modes only
+            current_mode = (current_mode + 1) % (max_mode + 1)
             print(f"\n[MODE] {mode_names[current_mode]}")
         
         # ===== CAPTURE (ALL MODES) =====
         elif key == ord(' '):
             
-            # NORMAL POINT CAPTURE MODE - proceed with regular scanning
+            # CHECK CAPTURE MODE FIRST - PHOTO or POINT CLOUD
+            if capture_mode == CAPTURE_MODE_PHOTO:
+                # PHOTO MODE - Just save the current frame as JPG
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                roi_prefix = "roi_" if roi_enabled else ""
+                filename = f"photo_{roi_prefix}{timestamp}.jpg"
+                
+                output_dir = SAVE_DIRECTORY
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_path = output_dir / filename
+                
+                # Save the undistorted frame (or ROI crop if enabled)
+                if roi_enabled:
+                    # Crop to ROI region
+                    x1 = max(0, min(roi_x1, w-1))
+                    y1 = max(0, min(roi_y1, h-1))
+                    x2 = max(x1+1, min(roi_x2, w))
+                    y2 = max(y1+1, min(roi_y2, h))
+                    frame_to_save = undistorted[y1:y2, x1:x2].copy()
+                    print(f"\n📸 Photo saved (ROI {x2-x1}x{y2-y1}): {output_path.name}")
+                else:
+                    frame_to_save = undistorted
+                    print(f"\n📸 Photo saved: {output_path.name}")
+                
+                cv2.imwrite(str(output_path), frame_to_save)
+                print(f"   Location: {output_dir}")
+                
+                # Flash the screen to indicate capture
+                flash_frame = np.ones_like(display_frame) * 255
+                cv2.imshow(window_name, flash_frame)
+                cv2.waitKey(50)
+                
+                # Continue to next frame (don't process point cloud)
+                continue
+            
+            # POINT CLOUD MODE - proceed with regular scanning
             # QUALITY WARNING BEFORE CAPTURE (non-blocking)
             if ai_result:
                 fps = ai_result.get('fps', 0)
@@ -3125,61 +3090,6 @@ def scan_3d_points(project_dir=None):
             mode_name = "POINT CLOUD" if capture_mode == CAPTURE_MODE_POINTCLOUD else "PHOTO"
             print(f"📸 Capture mode: {mode_name}")
         
-        # ===== 3D VIEWER =====
-        elif key == ord('o'):
-            if len(points_3d) > 0:
-                print("\n[3D VIEWER] Opening visualization...")
-                
-                # Get actual camera resolution
-                cam_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                cam_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                
-                print(f"[3D VIEWER] Camera resolution: {cam_width}x{cam_height}")
-                
-                # Lock the video window size BEFORE opening 3D viewer
-                cv2.resizeWindow(window_name, cam_width, cam_height)
-                cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
-                
-                # Open 3D viewer (positioned in top-right corner automatically)
-                visualize_point_cloud_3d(
-                    points_3d, points_colors, 
-                    window_name=f"Scanner - {len(points_3d):,} points",
-                    width=cam_width,
-                    height=cam_height
-                )
-                
-                print("[3D VIEWER] Closed - restoring scanner window...")
-                
-                # Re-lock window size and position
-                cv2.resizeWindow(window_name, cam_width, cam_height)
-                
-                # Re-center window on screen
-                try:
-                    import tkinter as tk
-                    root = tk.Tk()
-                    screen_width = root.winfo_screenwidth()
-                    screen_height = root.winfo_screenheight()
-                    root.destroy()
-                    
-                    center_x = (screen_width - cam_width) // 2
-                    center_y = (screen_height - cam_height) // 2
-                    cv2.moveWindow(window_name, center_x, center_y)
-                except:
-                    pass
-                
-                # Force refresh with new frames
-                for i in range(10):
-                    ret, frame = cap.read()
-                    if ret:
-                        temp_frame = gpu_opt.undistort_frame(frame) if gpu_opt else frame
-                        cv2.imshow(window_name, temp_frame)
-                        if cv2.waitKey(10) & 0xFF == 27:  # Allow ESC to break
-                            break
-                
-                print(f"[3D VIEWER] Window restored and centered at {cam_width}x{cam_height}")
-            else:
-                print("⚠️  No points captured yet - scan some points first!")
-        
         # ===== SAVE =====
         elif key == ord('s'):
             if len(points_3d) > 0:
@@ -3448,7 +3358,7 @@ def main():
     project_dir = args.project if args.project else None
     
     print("\n" + "="*80)
-    print("🚀 STARTING BOSCH GLM 42 SCANNER")
+    print("🚀 STARTING INFINITY GEMS 3D SCANNER")
     print("="*80)
     
     scan_3d_points(project_dir)  # ✅ NOW THIS WILL WORK!

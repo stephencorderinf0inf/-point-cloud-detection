@@ -15,14 +15,16 @@ class PanelDisplayModule:
     Manages all overlay panels for the scanner interface.
     """
     
-    def __init__(self, window_name="3D Scanner"):
+    def __init__(self, window_name="3D Scanner", show_depth_mode=True):
         """
         Initialize panel display module.
         
         Args:
             window_name: OpenCV window name for display
+            show_depth_mode: Whether to show AI Depth mode in controls (default: True)
         """
         self.window_name = window_name
+        self.show_depth_mode = show_depth_mode
         self.info_box_visible = True
         self.ai_panel_visible = True
         self.terminal_visible = True  # Terminal output panel visibility
@@ -293,9 +295,10 @@ class PanelDisplayModule:
         
         rotation_controls = [
             "[SPACE] Capture point(s)",
+            "[Y] Increment angle",
             f"[R] Rotate +{rotation_step:.1f}deg",
-            "[T] Set angle manually",
-            "[E] Change step size"
+            "[W] Change step size +",
+            "[E] Change step size -"
         ]
         
         for line in rotation_controls:
@@ -323,9 +326,11 @@ class PanelDisplayModule:
         mode_controls = [
             "[1] Laser detection",
             "[2] Curve tracing",
-            "[3] Corner detection",
-            "[4] AI Depth (MiDaS)"
+            "[3] Corner detection"
         ]
+        
+        if self.show_depth_mode:
+            mode_controls.append("[4] AI Depth (Depth Anything V2)")
         
         for line in mode_controls:
             cv2.putText(frame, line, 
@@ -351,7 +356,6 @@ class PanelDisplayModule:
             "[V] Cartoon mode",
             "[D] Debug view",
             "[C] Clear points",
-            "[O] 3D Viewer",
             "[F] Process photos",
             "[T] Toggle capture mode",
             "[S] Save cloud",
