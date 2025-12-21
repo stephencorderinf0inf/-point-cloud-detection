@@ -1,3 +1,5 @@
+<img width="2185" height="1605" alt="snapshot_00-001" src="https://github.com/user-attachments/assets/14f8ff57-bea6-4fd5-b153-a9afef143443" />
+<img width="2071" height="1605" alt="snapshot001" src="https://github.com/user-attachments/assets/cb120ab0-c3b9-4036-a9c6-a5a5167571db" />
 # Point Cloud Detection Scanner 🔴🎯
 
 **Advanced 3D Scanner optimized for Bosch GLM 42 (635nm Red Laser)**
