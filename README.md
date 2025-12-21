@@ -2,7 +2,7 @@
 <img width="2071" height="1605" alt="snapshot001" src="https://github.com/user-attachments/assets/cb120ab0-c3b9-4036-a9c6-a5a5167571db" />
 # Point Cloud Detection Scanner 🔴🎯
 
-**Advanced 3D Scanner optimized for Bosch GLM 42 (635nm Red Laser)**
+**Advanced 3D Scanner optimized for full spectrum dot distance detection (635nm Red Laser)**
 
 Laser triangulation-based 3D scanner with AI depth estimation, real-time visualization, and mesh generation.
 
@@ -26,6 +26,7 @@ Laser triangulation-based 3D scanner with AI depth estimation, real-time visuali
 ### **Mesh Generation**
 - **Poisson Surface Reconstruction** - Watertight, smooth meshes
 - **Ball Pivoting Algorithm (BPA)** - Faithful to original data
+- **Screened Algorithm**
 - Auto-generates mesh on save (`.obj` + `.ply` formats)
 
 ### **Advanced Features**
@@ -43,7 +44,6 @@ Laser triangulation-based 3D scanner with AI depth estimation, real-time visuali
 ### **Requirements**
 - Python 3.8+
 - Webcam (1280x720 recommended)
-- Bosch GLM 42 laser distance meter (635nm red laser)
 
 ### **Quick Install** (Basic laser scanning):
 ```bash
@@ -76,7 +76,7 @@ python laser_3d_scanner_advanced.py
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| **1/2/3/4** | Mode Switch | Red Laser / Curve / Corners / AI Depth |
+| **1/2/3/4** | Mode Switch | Full Spectrum / Curve / Corners / AI Depth |
 | **SPACE** | Capture | Add points to 3D cloud |
 | **O** | 3D Viewer | Open interactive point cloud visualization |
 | **S** | Save | Export `.ply` + auto-generate mesh |
@@ -150,20 +150,16 @@ python calibration/checkerboard.py
 ```
 
 ### **2. Basic Scanning**
-1. Launch scanner: `python laser_3d_scanner_advanced.py`
-2. Press **1** for Red Laser mode
-3. Point laser at object
-4. Press **SPACE** to capture points
-5. Rotate object, capture more points
-6. Press **O** to view 3D model
-7. Press **S** to save (auto-generates mesh)
+1. Launch scanner: `python laser_3d_scanner_advanced.py
+2. Press **SPACE** to capture points
+3. Rotate object, capture more points  
+4. Press **S** to save (auto-generates mesh)
 
 ### **3. AI Depth Scanning** (No laser required)
 1. Press **4** for AI Depth mode
 2. Position camera to view object
 3. Press **SPACE** to capture dense depth map
-4. Press **O** to view 3D point cloud
-5. Press **S** to save
+4. Press **S** to save
 
 ---
 
@@ -179,7 +175,7 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 ### **Laser Color** (for non-635nm lasers)
 Edit `spectrum_config.py` or press **P** to cycle presets:
-- 635nm Red (Bosch GLM 42) - Default
+- Full Spectrum - Default
 - 532nm Green
 - 450nm Blue
 - 780nm Near-IR
