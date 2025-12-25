@@ -45,6 +45,10 @@ Laser triangulation-based 3D scanner with AI depth estimation, real-time visuali
 - Python 3.8+
 - Webcam (1280x720 recommended)
 
+### ⚠️ Performance Note (CPU Users)
+Infinity Gem is optimized for CPU-based reconstruction, but extremely large point clouds can take time to process. On a 32 GB RAM / 22‑core CPU system, generating a 2–3 million point cloud takes approximately 4 minutes. Performance will vary based on hardware and input complexity.
+
+
 ### **Quick Install** (Basic laser scanning):
 ```bash
 pip install opencv-python numpy
@@ -260,6 +264,7 @@ Fixed in v2.0 - viewer now positions in top-right corner
 | numpy | Array operations, point clouds | ✅ Yes |
 | torch | AI depth neural network | ⚠️ Optional |
 | torchvision | Image transforms for AI | ⚠️ Optional |
+| V2 AI Assist | Standalone depth AI module (zip)| ⚠️ Optional |
 | timm | MiDaS DPT model support | ⚠️ Optional |
 | open3d | 3D visualization, mesh generation | ⚠️ Optional |
 | psutil | System monitoring | ⚠️ Optional |
