@@ -14,14 +14,10 @@ Laser triangulation-based 3D scanner with AI depth estimation, real-time visuali
 - **🔴 Mode 1: Red Laser (635nm)** - Precise laser dot triangulation for high-accuracy 3D scanning
 - **🌈 Mode 2: Curve Trace** - Detect and trace continuous curves/contours
 - **📐 Mode 3: Corner Detection** - Find corners and feature points
-- **🤖 Mode 4: AI Depth** - Monocular depth estimation using MiDaS neural network
+- **🤖 Mode 4: AI Depth** - Monocular depth estimation using V2 or MiDaS neural network
 
 ### **3D Visualization**
-- **Interactive 3D Viewer** (Press `O`) - Open3D-powered point cloud visualization
-  - Rotate, pan, zoom controls
-  - Color-coded by height
-  - Coordinate frame reference
-  - Positioned in top-right corner to avoid window conflicts
+- **MeshLab** suggested for point cloud visualization
 
 ### **Mesh Generation**
 - **Poisson Surface Reconstruction** - Watertight, smooth meshes
@@ -85,7 +81,6 @@ python laser_3d_scanner_advanced.py
 |-----|--------|-------------|
 | **1/2/3/4** | Mode Switch | Full Spectrum / Curve / Corners / AI Depth |
 | **SPACE** | Capture | Add points to 3D cloud |
-| **O** | 3D Viewer | Open interactive point cloud visualization |
 | **S** | Save | Export `.ply` + auto-generate mesh |
 | **C** | Clear | Delete all captured points |
 | **M** | Mesh Method | Toggle Poisson / Ball Pivoting |
@@ -256,7 +251,7 @@ Fixed in v2.0 - viewer now positions in top-right corner
 ### **Mesh Algorithms**
 - **Poisson**: 8-10 octree depth, watertight surfaces
 - **BPA**: 5mm ball radius, preserves fine details
-
+- **Screened**
 ---
 
 ## 🔗 Dependencies
@@ -269,7 +264,6 @@ Fixed in v2.0 - viewer now positions in top-right corner
 | torchvision | Image transforms for AI | ⚠️ Optional |
 | V2 AI Assist | Standalone depth AI module (zip)| ⚠️ Optional |
 | timm | MiDaS DPT model support | ⚠️ Optional |
-| open3d | 3D visualization, mesh generation | ⚠️ Optional |
 | psutil | System monitoring | ⚠️ Optional |
 
 ---
@@ -296,5 +290,5 @@ For issues or questions, check:
 ---
 
 **Last Updated**: December 13, 2025  
-**Version**: 2.0 (Lazy Loading + 3D Viewer Update)
+**Version**: 2.0 (Lazy Loading )
 
