@@ -48,6 +48,9 @@ Laser triangulation-based 3D scanner with AI depth estimation, real-time visuali
 ### ⚠️ Performance Note (CPU Users)
 Infinity Gem is optimized for CPU-based reconstruction, but extremely large point clouds can take time to process. On a 32 GB RAM / 22‑core CPU system, generating a 2–3 million point cloud takes approximately 4 minutes. Performance will vary based on hardware and input complexity.
 
+### ⚠️ Performance Warning
+Infinity Gem supports both CPU and GPU reconstruction. Large point sets (2–3 million points or more) are GPU‑accelerated and will run significantly faster on a capable GPU. CPU processing is still supported but may take several minutes depending on your hardware.
+
 
 ### **Quick Install** (Basic laser scanning):
 ```bash
