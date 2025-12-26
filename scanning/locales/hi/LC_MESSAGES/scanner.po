@@ -1,0 +1,221 @@
+# 3D Laser Scanner Translation Template
+# Copyright (C) 2025
+# This file is distributed under the same license as the scanner package.
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: hi\n"
+
+#: panel_display_module.py:151
+msgid "TERMINAL OUTPUT"
+msgstr "टर्मिनल आउटपुट"
+
+#: panel_display_module.py:157
+msgid "[Scrolled up {}]"
+msgstr "[{} ऊपर स्क्रॉल किया]"
+
+#: panel_display_module.py:189
+msgid "[[ / ]]: Scroll  [\\]: Bottom"
+msgstr "[[ / ]]: स्क्रॉल  [\\]: नीचे"
+
+#: panel_display_module.py:198
+msgid "({} more above)"
+msgstr "(ऊपर {} और)"
+
+#: panel_display_module.py:252
+msgid "SCANNER CONTROLS"
+msgstr "स्कैनर नियंत्रण"
+
+#: panel_display_module.py:257
+msgid "[B] Hide"
+msgstr "[B] छुपाएं"
+
+#: panel_display_module.py:265
+msgid "Angle: {:.1f}deg"
+msgstr "कोण: {:.1f}°"
+
+#: panel_display_module.py:270
+msgid "Session: {}"
+msgstr "सत्र: {}"
+
+#: panel_display_module.py:275
+msgid "Step: {:.1f}deg"
+msgstr "चरण: {:.1f}°"
+
+#: panel_display_module.py:280
+msgid "Points: {}"
+msgstr "बिंदु: {}"
+
+#: panel_display_module.py:285
+msgid "Mode: {}"
+msgstr "मोड: {}"
+
+#: panel_display_module.py:297
+msgid "ROTATION:"
+msgstr "घूर्णन:"
+
+#: panel_display_module.py:303
+msgid "[SPACE] Capture point(s)"
+msgstr "[स्पेस] बिंदु कैप्चर करें"
+
+#: panel_display_module.py:304
+msgid "[R] Rotate +{:.1f}deg"
+msgstr "[R] घुमाएं +{:.1f}°"
+
+#: panel_display_module.py:305
+msgid "[T] Set angle manually"
+msgstr "[T] कोण मैन्युअल रूप से सेट करें"
+
+#: panel_display_module.py:306
+msgid "[E] Change step size"
+msgstr "[E] चरण आकार बदलें"
+
+#: panel_display_module.py:326
+msgid "MODES:"
+msgstr "मोड:"
+
+#: panel_display_module.py:332
+msgid "[1] Laser detection"
+msgstr "[1] लेजर डिटेक्शन"
+
+#: panel_display_module.py:333
+msgid "[2] Curve tracing"
+msgstr "[2] वक्र अनुरेखण"
+
+#: panel_display_module.py:334
+msgid "[3] Corner detection"
+msgstr "[3] कोने की पहचान"
+
+#: panel_display_module.py:335
+msgid "[4] AI Depth (MiDaS)"
+msgstr "[4] AI गहराई (MiDaS)"
+
+#: panel_display_module.py:353
+msgid "UTILITIES:"
+msgstr "उपयोगिताएँ:"
+
+#: panel_display_module.py:359
+msgid "[V] Cartoon mode"
+msgstr "[V] कार्टून मोड"
+
+#: panel_display_module.py:360
+msgid "[D] Debug view"
+msgstr "[D] डीबग व्यू"
+
+#: panel_display_module.py:361
+msgid "[C] Clear points"
+msgstr "[C] बिंदु साफ़ करें"
+
+#: panel_display_module.py:362
+msgid "[O] 3D Viewer"
+msgstr "[O] 3D व्यूअर"
+
+#: panel_display_module.py:363
+msgid "[F] Process photos"
+msgstr "[F] फ़ोटो प्रोसेस करें"
+
+#: panel_display_module.py:364
+msgid "[T] Toggle capture mode"
+msgstr "[T] कैप्चर मोड टॉगल करें"
+
+#: panel_display_module.py:365
+msgid "[S] Save cloud"
+msgstr "[S] क्लाउड सहेजें"
+
+#: panel_display_module.py:366
+msgid "[M] Mesh method"
+msgstr "[M] मेश विधि"
+
+#: panel_display_module.py:367
+msgid "[I] Toggle AI panel"
+msgstr "[I] AI पैनल टॉगल करें"
+
+#: panel_display_module.py:368
+msgid "[H] Hide terminal"
+msgstr "[H] टर्मिनल छुपाएं"
+
+#: panel_display_module.py:369
+msgid "[[ / ]] Scroll terminal"
+msgstr "[[ / ]] टर्मिनल स्क्रॉल करें"
+
+#: panel_display_module.py:370
+msgid "[Q] Quit"
+msgstr "[Q] बाहर निकलें"
+
+#: panel_display_module.py:394
+msgid "[+/-] Curve sampling"
+msgstr "[+/-] वक्र नमूनाकरण"
+
+#: panel_display_module.py:395
+msgid "[{/}] Corner count"
+msgstr "[{/}] कोने की गिनती"
+
+#: panel_display_module.py:396
+msgid "[</>] Edge threshold"
+msgstr "[</>] किनारे की सीमा"
+
+#: panel_display_module.py:414
+msgid "Curve: 1/{}"
+msgstr "वक्र: 1/{}"
+
+#: panel_display_module.py:419
+msgid "Corners: {}"
+msgstr "कोने: {}"
+
+#: panel_display_module.py:424
+msgid "Edges: {}/{}"
+msgstr "किनारे: {}/{}"
+
+#: panel_display_module.py:438
+msgid "CURVE MODE:"
+msgstr "वक्र मोड:"
+
+#: panel_display_module.py:447
+msgid "Curves: {}"
+msgstr "वक्र: {}"
+
+#: panel_display_module.py:451
+msgid "Curve pts: {}"
+msgstr "वक्र बिंदु: {}"
+
+#: panel_display_module.py:455
+msgid "No curves detected"
+msgstr "कोई वक्र नहीं मिला"
+
+#: panel_display_module.py:497
+msgid "Camera Info"
+msgstr "कैमरा जानकारी"
+
+#: panel_display_module.py:502
+msgid "FPS: {:.1f}"
+msgstr "FPS: {:.1f}"
+
+#: panel_display_module.py:510
+msgid "Res: {}"
+msgstr "रिज़ॉल्यूशन: {}"
+
+#: panel_display_module.py:515
+msgid "Focal: {}"
+msgstr "फोकल: {}"
+
+#: panel_display_module.py:521
+msgid "Sharp: {:.2f}"
+msgstr "शार्पनेस: {:.2f}"
+
+#: panel_display_module.py:528
+msgid "Bright: {:.2f}"
+msgstr "चमक: {:.2f}"
+
+#: panel_display_module.py:535
+msgid "Status: {}"
+msgstr "स्थिति: {}"
+
+#: panel_display_module.py:540
+msgid "Analyzing..."
+msgstr "विश्लेषण कर रहे हैं..."
+
+#: panel_display_module.py:544
+msgid "Press 'i' to hide"
+msgstr "छुपाने के लिए 'i' दबाएं"
+

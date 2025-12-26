@@ -83,6 +83,11 @@ def create_po_file_for_language(pot_file, lang_code, lang_name):
     
     po_file = locale_dir / 'scanner.po'
     
+    # Only create if doesn't exist (to preserve existing translations)
+    if po_file.exists():
+        print(f"✓ Found existing {lang_name} translation file: {po_file}")
+        return
+    
     # Copy template and update header
     with open(pot_file, 'r', encoding='utf-8') as f:
         content = f.read()
@@ -130,6 +135,7 @@ if __name__ == "__main__":
     files_to_scan = [
         'laser_3d_scanner_advanced.py',
         'calibration_helper.py',
+        'panel_display_module.py',
         # Add more files as needed
     ]
     
@@ -160,28 +166,31 @@ if __name__ == "__main__":
     print("\nCreating language-specific files...")
     languages = {
         'es': 'Spanish',
-        # 'zh': 'Chinese (Simplified)',
-        # 'de': 'German',
-        # 'ja': 'Japanese',
+        'zh': 'Chinese (Simplified)',
+        'fr': 'French',
+        'de': 'German',
+        'pt': 'Portuguese (Brazil)',
+        'ja': 'Japanese',
+        'hi': 'Hindi',
     }
     
     for lang_code, lang_name in languages.items():
         create_po_file_for_language(pot_file, lang_code, lang_name)
     
+    # Compile .po files to .mo files
+    print("\nCompiling translations...")
+    compile_po_to_mo()
+    
     print("\n" + "=" * 70)
-    print("NEXT STEPS:")
+    print("✅ TRANSLATION SETUP COMPLETE!")
     print("=" * 70)
-    print("\n1. TRANSLATE strings:")
-    print("   • Open: locales/es/LC_MESSAGES/scanner.po")
-    print("   • Edit msgstr \"\" fields with Spanish translations")
-    print("   • Use a PO editor like Poedit (https://poedit.net/)")
+    print("\n📝 To edit translations:")
+    print("   • Open: locales/{lang}/LC_MESSAGES/scanner.po")
+    print("   • Edit msgstr fields")
+    print("   • Run this script again to recompile")
     
-    print("\n2. COMPILE translations:")
-    print("   • Install: pip install polib")
-    print("   • Run this script again to compile .po -> .mo")
-    
-    print("\n3. TEST translations:")
+    print("\n🧪 To test translations:")
     print("   • Run: python i18n_manager.py")
-    print("   • Or set language in scanner")
+    print("   • Or integrate into your scanner")
     
     print("\n" + "=" * 70)

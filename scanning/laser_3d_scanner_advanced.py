@@ -366,6 +366,10 @@ DISTANCE_MAX_CM = 150
 Y_AT_MIN_DISTANCE = 500
 Y_AT_MAX_DISTANCE = 100
 
+# Distance calibration correction factor (adjust based on real measurements)
+# If actual = 41.95 cm but display shows 109.5 cm, factor = 41.95/109.5 = 0.383
+DISTANCE_CORRECTION_FACTOR = 0.641  # Calibrated: 42cm actual at center
+
 # ROI (Region of Interest) cropping
 roi_enabled = False
 roi_x1, roi_y1, roi_x2, roi_y2 = 0, 0, 0, 0
@@ -718,9 +722,15 @@ def suggest_roi_from_contrast(frame):
 
 def estimate_distance_linear(dot_y):
     """Linear interpolation for distance based on Y position."""
+    global DISTANCE_CORRECTION_FACTOR
+    
     y_clamped = max(Y_AT_MAX_DISTANCE, min(Y_AT_MIN_DISTANCE, dot_y))
     t = (y_clamped - Y_AT_MAX_DISTANCE) / (Y_AT_MIN_DISTANCE - Y_AT_MAX_DISTANCE)
     distance_cm = DISTANCE_MAX_CM - t * (DISTANCE_MAX_CM - DISTANCE_MIN_CM)
+    
+    # Apply correction factor based on real-world measurements
+    distance_cm = distance_cm * DISTANCE_CORRECTION_FACTOR
+    
     return distance_cm
 
 def run_ai_analysis(frame, camera_matrix, cap):
@@ -1711,8 +1721,56 @@ def check_system_requirements():
         print("   ⚠️  timm not available (only small models will work)")
         # Don't fail - continue without timm
     
-    # 8. MiDaS model accessibility check
-    print("\n📌 MiDaS Depth Model")
+    # 8. Depth Anything V2 model check
+    print("\n📌 Depth Anything V2 Model")
+    if torch_available:
+        try:
+            # Check if Depth Anything V2 is available
+            depth_v2_available = False
+            depth_v2_path = None
+            
+            # Check common locations for Depth Anything V2
+            possible_locations = [
+                Path(__file__).parent / "depth_anything_v2",
+                Path(__file__).parent / "models" / "depth_anything_v2",
+                Path("D:/Users/Planet UI/world_folder/projects/Depth-Anything-V2"),
+                Path.home() / ".cache" / "depth_anything_v2",
+            ]
+            
+            for loc in possible_locations:
+                if loc.exists():
+                    depth_v2_path = loc
+                    depth_v2_available = True
+                    break
+            
+            if depth_v2_available:
+                print(f"   ✅ Depth Anything V2 found at: {depth_v2_path.name}")
+                
+                # Check for model files
+                model_files = list(depth_v2_path.glob("**/*.pth")) + list(depth_v2_path.glob("**/*.pt"))
+                if model_files:
+                    print(f"   ✓ Found {len(model_files)} model file(s)")
+                    for model in model_files[:3]:  # Show first 3
+                        try:
+                            size_mb = model.stat().st_size / (1024**2)
+                            print(f"      • {model.name} ({size_mb:.1f} MB)")
+                        except:
+                            print(f"      • {model.name}")
+                
+                print("   ✓ Depth Anything V2 ready for use")
+            else:
+                print("   ℹ️  Depth Anything V2 not found locally")
+                print("   📥 Download from: https://github.com/DepthAnything/Depth-Anything-V2")
+                print("   Or install via: pip install depth-anything-v2")
+                print("   ⚠️  Mode 4 will use MiDaS instead")
+                
+        except Exception as e:
+            print(f"   ⚠️  Cannot check Depth Anything V2: {e}")
+    else:
+        print("   ❌ Cannot check - PyTorch not available")
+    
+    # 9. MiDaS model accessibility check
+    print("\n📌 MiDaS Depth Model (Alternative)")
     if torch_available:
         try:
             # Check if torch hub cache exists
@@ -1742,7 +1800,7 @@ def check_system_requirements():
         print("   ❌ Cannot check - PyTorch not available")
         print("   ⚠️  Depth estimation features will be DISABLED")
     
-    # 9. Open3D check (optional but recommended)
+    # 10. Open3D check (optional but recommended)
     print("\n📌 Open3D (optional - for mesh export)")
     o3d = get_open3d()  # Use lazy loader
     if o3d is not None:
@@ -1753,7 +1811,7 @@ def check_system_requirements():
         print("   Install for mesh export: pip install open3d")
         print("   ✓ Scanner will work without it (point clouds only)")
     
-    # 10. Camera availability check
+    # 11. Camera availability check
     print("\n📌 Camera Availability")
     try:
         import cv2
@@ -1869,6 +1927,7 @@ def scan_3d_points(project_dir=None):
     global curve_sample_rate, corner_max_count, canny_threshold1, canny_threshold2
     global _quaternion_rotation
     global rotation_step, current_angle, current_session
+    global DISTANCE_CORRECTION_FACTOR
     
     # Initialize internationalization
     _ = setup_i18n()
@@ -1946,7 +2005,41 @@ def scan_3d_points(project_dir=None):
             camera_matrix, dist_coeffs = get_default_camera_matrix(1280, 720)
     else:
         camera_matrix, dist_coeffs = calibration_result
-        print(f"\n✓ Calibration loaded successfully")
+        print(f"\n✅ CAMERA CALIBRATED - Ready to scan!")
+        print(f"   Camera calibration successfully loaded from disk")
+        print(f"   Press 't' during scan to toggle between calibrations (if dual available)")
+    
+    # ========================================
+    # 🎨 DEPTH MODEL SELECTION (Mode 4)
+    # ========================================
+    depth_model_choice = "v2"  # Default: Depth Anything V2
+    
+    # Check if both models are available
+    depth_v2_available = get_depth_estimator() is not None
+    
+    if depth_v2_available:
+        print("\n" + "="*70)
+        print("🤖 AI DEPTH MODEL SELECTION (Mode 4)")
+        print("="*70)
+        print("\nAvailable depth estimation models:")
+        print("  [1] Depth Anything V2 (Default - Faster, more accurate)")
+        print("  [2] MiDaS (Alternative - Good for general scenes)")
+        print("  [3] Skip (Disable AI depth mode)")
+        
+        choice = input("\n👉 Select depth model (1-3, press Enter for default): ").strip()
+        
+        if choice == "2":
+            depth_model_choice = "midas"
+            print("✓ Selected: MiDaS depth model")
+        elif choice == "3":
+            depth_model_choice = "none"
+            print("✓ AI depth mode disabled")
+        else:
+            depth_model_choice = "v2"
+            print("✓ Selected: Depth Anything V2 (default)")
+    else:
+        depth_model_choice = "none"
+        print("\n⚠️  No depth models available - Mode 4 will be disabled")
     
     # ========================================
     
@@ -2010,7 +2103,7 @@ def scan_3d_points(project_dir=None):
             
             # Estimate depth
             print("   🤖 Running AI depth estimation...")
-            depth_map = estimator.estimate_depth(frame)
+            depth_map = estimate_depth_unified(frame, estimator)
             
             if depth_map is None:
                 print("   ❌ Depth estimation failed")
@@ -2045,7 +2138,7 @@ def scan_3d_points(project_dir=None):
                     depth_m = min_depth_m + (max_depth_m - min_depth_m) * depth_value
                     
                     if min_depth_m <= depth_m <= max_depth_m:
-                        z = depth_m * 1000  # Convert to mm
+                        z = depth_m * 1000 * DISTANCE_CORRECTION_FACTOR  # Convert to mm with correction
                         px = (x - cx) * z / fx
                         py = (y - cy) * z / fy
                         
@@ -2186,20 +2279,102 @@ def scan_3d_points(project_dir=None):
     def load_depth_model():
         """Lazy load depth estimator when Mode 4 is activated."""
         nonlocal depth_estimator
-        DepthEstimator_class = get_depth_estimator()  # Call global function
-        if DepthEstimator_class is None:
-            print("❌ Depth estimation not available")
+        
+        if depth_model_choice == "none":
+            print("❌ Depth estimation disabled by user")
             return None
         
-        if depth_estimator is None:
-            try:
-                print("\n[AI] Loading depth model...")
-                depth_estimator = DepthEstimator_class("small")
-                print(f"✓ Depth model loaded")
-            except Exception as e:
-                print(f"❌ Depth model failed: {e}")
+        if depth_model_choice == "midas":
+            # Load MiDaS model
+            if depth_estimator is None:
+                try:
+                    print("\n[AI] Loading MiDaS depth model...")
+                    import torch
+                    depth_estimator = torch.hub.load("intel-isl/MiDaS", "MiDaS_small")
+                    depth_estimator.eval()
+                    
+                    # Move to GPU if available
+                    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    depth_estimator.to(device)
+                    
+                    # Store device and transforms
+                    depth_estimator.device = device
+                    
+                    # Load transforms
+                    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+                    depth_estimator.transform = midas_transforms.small_transform
+                    
+                    print(f"✓ MiDaS model loaded on {device}")
+                except Exception as e:
+                    print(f"❌ MiDaS model failed: {e}")
+                    return None
+            return depth_estimator
+        
+        else:  # "v2" - Depth Anything V2
+            DepthEstimator_class = get_depth_estimator()
+            if DepthEstimator_class is None:
+                print("❌ Depth Anything V2 not available")
                 return None
-        return depth_estimator
+            
+            if depth_estimator is None:
+                try:
+                    print("\n[AI] Loading Depth Anything V2 model...")
+                    depth_estimator = DepthEstimator_class("small")
+                    print(f"✓ Depth Anything V2 loaded")
+                except Exception as e:
+                    print(f"❌ Depth Anything V2 failed: {e}")
+                    return None
+            return depth_estimator
+    
+    def estimate_depth_unified(frame, estimator):
+        """
+        Unified depth estimation function that works with both V2 and MiDaS.
+        
+        Args:
+            frame: Input BGR image
+            estimator: Depth estimator model (V2 or MiDaS)
+        
+        Returns:
+            Normalized depth map (0-1, where 0=far, 1=near)
+        """
+        if estimator is None:
+            return None
+        
+        try:
+            if depth_model_choice == "midas":
+                # MiDaS inference
+                import torch
+                import cv2
+                
+                # Prepare input
+                img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                input_batch = estimator.transform(img_rgb).to(estimator.device)
+                
+                # Inference
+                with torch.no_grad():
+                    prediction = estimator(input_batch)
+                    prediction = torch.nn.functional.interpolate(
+                        prediction.unsqueeze(1),
+                        size=img_rgb.shape[:2],
+                        mode="bicubic",
+                        align_corners=False,
+                    ).squeeze()
+                
+                depth_map = prediction.cpu().numpy()
+                
+                # Normalize to 0-1 (invert because MiDaS outputs inverse depth)
+                depth_map = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())
+                depth_map = 1.0 - depth_map  # Invert so 0=far, 1=near
+                
+                return depth_map
+            
+            else:  # Depth Anything V2
+                # V2 has its own estimate_depth method
+                return estimator.estimate_depth(frame)
+                
+        except Exception as e:
+            print(f"⚠️  Depth estimation error: {e}")
+            return None
     
     # Point cloud data
     points_3d = []
@@ -2316,14 +2491,22 @@ def scan_3d_points(project_dir=None):
     # depth_mode_enabled was already set earlier during panel initialization
     # Use it to configure mode names and help text
     
-    if depth_mode_enabled:
+    # Determine AI Depth mode name based on selected model
+    if depth_model_choice == "midas":
+        depth_mode_name = "AI DEPTH (MiDaS)"
+    elif depth_model_choice == "v2":
+        depth_mode_name = "AI DEPTH (V2)"
+    else:
+        depth_mode_name = "AI DEPTH"
+    
+    if depth_mode_enabled and depth_model_choice != "none":
         mode_names = {
             MODE_LASER: "RED LASER",
             MODE_CURVE: "CURVE TRACE",
             MODE_CORNERS: "CORNERS",
-            MODE_DEPTH: "AI DEPTH"
+            MODE_DEPTH: depth_mode_name
         }
-        mode_help_text = "  1       - Toggle mode (Laser → Curve → Corners → AI Depth)"
+        mode_help_text = f"  1       - Toggle mode (Laser → Curve → Corners → {depth_mode_name})"
         max_mode = 3
     else:
         mode_names = {
@@ -2345,6 +2528,7 @@ def scan_3d_points(project_dir=None):
     print("  v       - Toggle depth viz (mode 4)")
     print("  p       - Toggle density (mode 4)")
     print("  +/-     - Curve sample rate")
+    print("  * / \\   - Distance calibration adjust/reset (laser mode)")
     print("  w/e     - Rotation step size (modes 1-3) / Min depth (mode 4)")
     print("  Mouse   - Click & drag to set ROI")
     print("  q/ESC   - Quit")
@@ -2360,6 +2544,10 @@ def scan_3d_points(project_dir=None):
         undistorted = gpu_opt.undistort_frame(frame) if gpu_opt else frame
         h, w = undistorted.shape[:2]
         display_frame = undistorted.copy()
+        
+        # Calculate distance at camera center (will update based on laser when detected)
+        center_y = h // 2
+        center_distance_cm = estimate_distance_linear(center_y)
         
         # ========== MODE-SPECIFIC RENDERING =========
         
@@ -2379,6 +2567,12 @@ def scan_3d_points(project_dir=None):
                 cv2.putText(display_frame, f"{distance_cm:.1f}cm", 
                            (dot_x + 15, dot_y - 15), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                
+                # Update center distance based on laser dot (assumes surface is roughly planar)
+                # Account for vertical offset: laser Y vs center Y
+                y_offset = dot_y - center_y
+                # Approximate center distance (most accurate when laser near center)
+                center_distance_cm = distance_cm
         
         # CURVE MODE
         elif current_mode == MODE_CURVE:
@@ -2393,16 +2587,42 @@ def scan_3d_points(project_dir=None):
         
         # DEPTH MODE
         elif current_mode == MODE_DEPTH:
+            # Calculate real-time center distance from depth map
+            if depth_map is not None:
+                center_x = w // 2
+                center_y = h // 2
+                depth_value = depth_map[center_y, center_x]
+                # Convert normalized depth to real distance (meters then cm)
+                depth_m = min_depth_m + (max_depth_m - min_depth_m) * depth_value
+                center_distance_cm = depth_m * 100 * DISTANCE_CORRECTION_FACTOR
+            
             if show_depth_viz and depth_map is not None:
-                estimator = load_depth_model()
-                if estimator:
-                    depth_colored = estimator.visualize_depth(depth_map)
+                # Generate colored depth visualization
+                try:
+                    if depth_model_choice == "v2":
+                        estimator = load_depth_model()
+                        if estimator and hasattr(estimator, 'visualize_depth'):
+                            depth_colored = estimator.visualize_depth(depth_map)
+                        else:
+                            # Fallback visualization
+                            depth_colored = cv2.applyColorMap((depth_map * 255).astype(np.uint8), cv2.COLORMAP_INFERNO)
+                    else:
+                        # MiDaS or manual visualization
+                        depth_colored = cv2.applyColorMap((depth_map * 255).astype(np.uint8), cv2.COLORMAP_INFERNO)
+                    
                     depth_small = cv2.resize(depth_colored, (w//3, h//3))
                     overlay_y = h - h//3 - 10
                     overlay_x = w - w//3 - 10
                     display_frame[overlay_y:overlay_y+h//3, overlay_x:overlay_x+w//3] = depth_small
                     cv2.rectangle(display_frame, (overlay_x, overlay_y),
                                 (overlay_x+w//3, overlay_y+h//3), (0, 255, 255), 2)
+                    
+                    # Show depth range info
+                    cv2.putText(display_frame, f"{min_depth_m:.1f}m-{max_depth_m:.1f}m",
+                               (overlay_x+5, overlay_y+20), cv2.FONT_HERSHEY_SIMPLEX,
+                               0.5, (255, 255, 255), 1)
+                except Exception as e:
+                    print(f"⚠️ Depth viz error: {e}")
         
         # Draw ROI rectangle if enabled
         if roi_enabled:
@@ -2431,6 +2651,11 @@ def scan_3d_points(project_dir=None):
         status_lines = []
         status_lines.append(f"Mode: {mode_names[current_mode]}")
         status_lines.append(f"Points: {len(points_3d):,}")
+        
+        # Only show center distance in laser mode
+        if current_mode == MODE_LASER:
+            status_lines.append(f"Center: {center_distance_cm:.1f}cm")
+        
         status_lines.append(f"Mesh: {mesh_label}")
         status_lines.append(f"Capture: {capture_label}")  # NEW: Show active capture mode
         
@@ -2459,6 +2684,11 @@ def scan_3d_points(project_dir=None):
         elif current_mode == MODE_DEPTH:
             status_lines.append(f"Range: {min_depth_m:.1f}-{max_depth_m:.1f}m")
             status_lines.append(f"Down: {downsample}x")
+            # Show which depth model is active
+            if depth_model_choice == "midas":
+                status_lines.append("Model: MiDaS")
+            elif depth_model_choice == "v2":
+                status_lines.append("Model: V2")
             status_lines.append("[SPACE] Capture 3D")
         
         # Control hints
@@ -2513,6 +2743,7 @@ def scan_3d_points(project_dir=None):
             'current_session': current_session,
             'points_count': len(points_3d),
             'current_mode': mode_names[current_mode],
+            'depth_model': depth_model_choice,  # 🎨 NEW - Pass depth model selection
             'sensitivity_info': {
                 'curve_rate': curve_sample_rate,
                 'corner_max': corner_max_count,
@@ -2629,7 +2860,7 @@ def scan_3d_points(project_dir=None):
                     
                     # Estimate depth
                     print("   🤖 Running AI depth estimation...")
-                    depth_map_img = estimator.estimate_depth(frame_img)
+                    depth_map_img = estimate_depth_unified(frame_img, estimator)
                     
                     if depth_map_img is None:
                         print("   ❌ Depth estimation failed")
@@ -3063,11 +3294,59 @@ def scan_3d_points(project_dir=None):
                             roi_height = y2 - y1
                             print(f"[DEPTH] Processing ROI: {roi_width}x{roi_height} at ({x1},{y1})")
                         
-                        depth_map = estimator.estimate_depth(frame_to_process)
-                        new_points, new_colors = estimator.depth_to_point_cloud(
-                            frame_to_process, depth_map, camera_matrix_roi,
-                            max_depth_m, min_depth_m, downsample
-                        )
+                        # Generate depth map
+                        depth_map = estimate_depth_unified(frame_to_process, estimator)
+                        
+                        if depth_map is None:
+                            print("❌ Failed to generate depth map")
+                            continue
+                        
+                        # Convert depth map to point cloud
+                        if depth_model_choice == "v2" and hasattr(estimator, 'depth_to_point_cloud'):
+                            # Use V2's built-in method with correction factor
+                            new_points, new_colors = estimator.depth_to_point_cloud(
+                                frame_to_process, depth_map, camera_matrix_roi,
+                                max_depth_m, min_depth_m, downsample,
+                                distance_correction=DISTANCE_CORRECTION_FACTOR
+                            )
+                        else:
+                            # Manual conversion for MiDaS or if method missing
+                            h_depth, w_depth = depth_map.shape
+                            fx = camera_matrix_roi[0, 0]
+                            fy = camera_matrix_roi[1, 1]
+                            cx = camera_matrix_roi[0, 2]
+                            cy = camera_matrix_roi[1, 2]
+                            
+                            new_points = []
+                            new_colors = []
+                            
+                            for y in range(0, h_depth, downsample):
+                                for x in range(0, w_depth, downsample):
+                                    depth_value = depth_map[y, x]
+                                    
+                                    # Convert normalized depth to meters
+                                    depth_m = min_depth_m + (max_depth_m - min_depth_m) * depth_value
+                                    
+                                    if min_depth_m <= depth_m <= max_depth_m:
+                                        z = depth_m * 1000 * DISTANCE_CORRECTION_FACTOR  # Convert to mm with correction
+                                        px = (x - cx) * z / fx
+                                        py = (y - cy) * z / fy
+                                        
+                                        new_points.append([px, py, z])
+                                        
+                                        # Get color from original image
+                                        color_bgr = frame_to_process[y, x]
+                                        color_rgb = [int(color_bgr[2]) / 255.0,
+                                                   int(color_bgr[1]) / 255.0,
+                                                   int(color_bgr[0]) / 255.0]
+                                        new_colors.append(color_rgb)
+                            
+                            new_points = np.array(new_points)
+                            new_colors = np.array(new_colors)
+                            
+                            if len(new_points) == 0:
+                                print("⚠️ No points generated - adjust depth range (w/e keys)")
+                                continue
                         
                         points_3d.extend(new_points.tolist())
                         points_colors.extend(new_colors.tolist())
@@ -3079,10 +3358,13 @@ def scan_3d_points(project_dir=None):
                         elapsed = time.perf_counter() - start
                         roi_msg = f" (ROI: {roi_width}x{roi_height})" if roi_enabled else ""
                         print(f"✓ Added {len(new_points):,} points in {elapsed:.2f}s{roi_msg}")
+                        print(f"   Depth range: {min_depth_m:.1f}m - {max_depth_m:.1f}m, downsample: {downsample}x")
                         show_depth_viz = True
                         
                     except Exception as e:
+                        import traceback
                         print(f"❌ Error: {e}")
+                        traceback.print_exc()
         
         # ===== TOGGLE CAPTURE MODE =====
         elif key == ord('t'):
@@ -3257,6 +3539,19 @@ def scan_3d_points(project_dir=None):
         elif key == ord('-') or key == ord('_'):
             curve_sample_rate = min(20, curve_sample_rate + 1)
             print(f"[CURVE] Sample rate: 1/{curve_sample_rate}")
+        
+        # ===== DISTANCE CALIBRATION ADJUSTMENT (NEW!) =====
+        elif key == ord('*'):  # Increase distance correction (distances get larger)
+            DISTANCE_CORRECTION_FACTOR = min(2.0, DISTANCE_CORRECTION_FACTOR + 0.01)
+            print(f"[DISTANCE] Correction factor: {DISTANCE_CORRECTION_FACTOR:.3f} (distances +1%)")
+        
+        elif key == ord('/'):  # Decrease distance correction (distances get smaller)
+            DISTANCE_CORRECTION_FACTOR = max(0.1, DISTANCE_CORRECTION_FACTOR - 0.01)
+            print(f"[DISTANCE] Correction factor: {DISTANCE_CORRECTION_FACTOR:.3f} (distances -1%)")
+        
+        elif key == ord('\\'):  # Reset to default
+            DISTANCE_CORRECTION_FACTOR = 0.641
+            print(f"[DISTANCE] Reset correction factor to: {DISTANCE_CORRECTION_FACTOR:.3f}")
         
         elif key == ord('['):
             corner_max_count = max(10, corner_max_count - 10)

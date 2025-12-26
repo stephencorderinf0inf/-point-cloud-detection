@@ -1,0 +1,221 @@
+# 3D Laser Scanner Translation Template
+# Copyright (C) 2025
+# This file is distributed under the same license as the scanner package.
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de\n"
+
+#: panel_display_module.py:151
+msgid "TERMINAL OUTPUT"
+msgstr "TERMINAL-AUSGABE"
+
+#: panel_display_module.py:157
+msgid "[Scrolled up {}]"
+msgstr "[{} nach oben gescrollt]"
+
+#: panel_display_module.py:189
+msgid "[[ / ]]: Scroll  [\\]: Bottom"
+msgstr "[[ / ]]: Scrollen  [\\]: Ende"
+
+#: panel_display_module.py:198
+msgid "({} more above)"
+msgstr "({} weitere oben)"
+
+#: panel_display_module.py:252
+msgid "SCANNER CONTROLS"
+msgstr "SCANNER-STEUERUNG"
+
+#: panel_display_module.py:257
+msgid "[B] Hide"
+msgstr "[B] Ausblenden"
+
+#: panel_display_module.py:265
+msgid "Angle: {:.1f}deg"
+msgstr "Winkel: {:.1f}°"
+
+#: panel_display_module.py:270
+msgid "Session: {}"
+msgstr "Sitzung: {}"
+
+#: panel_display_module.py:275
+msgid "Step: {:.1f}deg"
+msgstr "Schritt: {:.1f}°"
+
+#: panel_display_module.py:280
+msgid "Points: {}"
+msgstr "Punkte: {}"
+
+#: panel_display_module.py:285
+msgid "Mode: {}"
+msgstr "Modus: {}"
+
+#: panel_display_module.py:297
+msgid "ROTATION:"
+msgstr "ROTATION:"
+
+#: panel_display_module.py:303
+msgid "[SPACE] Capture point(s)"
+msgstr "[LEERTASTE] Punkt(e) erfassen"
+
+#: panel_display_module.py:304
+msgid "[R] Rotate +{:.1f}deg"
+msgstr "[R] Drehen +{:.1f}°"
+
+#: panel_display_module.py:305
+msgid "[T] Set angle manually"
+msgstr "[T] Winkel manuell einstellen"
+
+#: panel_display_module.py:306
+msgid "[E] Change step size"
+msgstr "[E] Schrittgröße ändern"
+
+#: panel_display_module.py:326
+msgid "MODES:"
+msgstr "MODI:"
+
+#: panel_display_module.py:332
+msgid "[1] Laser detection"
+msgstr "[1] Lasererkennung"
+
+#: panel_display_module.py:333
+msgid "[2] Curve tracing"
+msgstr "[2] Kurvenverfolgung"
+
+#: panel_display_module.py:334
+msgid "[3] Corner detection"
+msgstr "[3] Eckenerkennung"
+
+#: panel_display_module.py:335
+msgid "[4] AI Depth (MiDaS)"
+msgstr "[4] KI-Tiefe (MiDaS)"
+
+#: panel_display_module.py:353
+msgid "UTILITIES:"
+msgstr "DIENSTPROGRAMME:"
+
+#: panel_display_module.py:359
+msgid "[V] Cartoon mode"
+msgstr "[V] Cartoon-Modus"
+
+#: panel_display_module.py:360
+msgid "[D] Debug view"
+msgstr "[D] Debug-Ansicht"
+
+#: panel_display_module.py:361
+msgid "[C] Clear points"
+msgstr "[C] Punkte löschen"
+
+#: panel_display_module.py:362
+msgid "[O] 3D Viewer"
+msgstr "[O] 3D-Viewer"
+
+#: panel_display_module.py:363
+msgid "[F] Process photos"
+msgstr "[F] Fotos verarbeiten"
+
+#: panel_display_module.py:364
+msgid "[T] Toggle capture mode"
+msgstr "[T] Aufnahmemodus umschalten"
+
+#: panel_display_module.py:365
+msgid "[S] Save cloud"
+msgstr "[S] Punktwolke speichern"
+
+#: panel_display_module.py:366
+msgid "[M] Mesh method"
+msgstr "[M] Mesh-Methode"
+
+#: panel_display_module.py:367
+msgid "[I] Toggle AI panel"
+msgstr "[I] KI-Panel umschalten"
+
+#: panel_display_module.py:368
+msgid "[H] Hide terminal"
+msgstr "[H] Terminal ausblenden"
+
+#: panel_display_module.py:369
+msgid "[[ / ]] Scroll terminal"
+msgstr "[[ / ]] Terminal scrollen"
+
+#: panel_display_module.py:370
+msgid "[Q] Quit"
+msgstr "[Q] Beenden"
+
+#: panel_display_module.py:394
+msgid "[+/-] Curve sampling"
+msgstr "[+/-] Kurvenabtastung"
+
+#: panel_display_module.py:395
+msgid "[{/}] Corner count"
+msgstr "[{/}] Eckenanzahl"
+
+#: panel_display_module.py:396
+msgid "[</>] Edge threshold"
+msgstr "[</>] Kantenschwelle"
+
+#: panel_display_module.py:414
+msgid "Curve: 1/{}"
+msgstr "Kurve: 1/{}"
+
+#: panel_display_module.py:419
+msgid "Corners: {}"
+msgstr "Ecken: {}"
+
+#: panel_display_module.py:424
+msgid "Edges: {}/{}"
+msgstr "Kanten: {}/{}"
+
+#: panel_display_module.py:438
+msgid "CURVE MODE:"
+msgstr "KURVENMODUS:"
+
+#: panel_display_module.py:447
+msgid "Curves: {}"
+msgstr "Kurven: {}"
+
+#: panel_display_module.py:451
+msgid "Curve pts: {}"
+msgstr "Kurvenpunkte: {}"
+
+#: panel_display_module.py:455
+msgid "No curves detected"
+msgstr "Keine Kurven erkannt"
+
+#: panel_display_module.py:497
+msgid "Camera Info"
+msgstr "Kamera-Info"
+
+#: panel_display_module.py:502
+msgid "FPS: {:.1f}"
+msgstr "FPS: {:.1f}"
+
+#: panel_display_module.py:510
+msgid "Res: {}"
+msgstr "Aufl: {}"
+
+#: panel_display_module.py:515
+msgid "Focal: {}"
+msgstr "Brenn: {}"
+
+#: panel_display_module.py:521
+msgid "Sharp: {:.2f}"
+msgstr "Schärfe: {:.2f}"
+
+#: panel_display_module.py:528
+msgid "Bright: {:.2f}"
+msgstr "Helligkeit: {:.2f}"
+
+#: panel_display_module.py:535
+msgid "Status: {}"
+msgstr "Status: {}"
+
+#: panel_display_module.py:540
+msgid "Analyzing..."
+msgstr "Analysiere..."
+
+#: panel_display_module.py:544
+msgid "Press 'i' to hide"
+msgstr "Drücke 'i' zum Ausblenden"
+

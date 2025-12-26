@@ -1,0 +1,221 @@
+# 3D Laser Scanner Translation Template
+# Copyright (C) 2025
+# This file is distributed under the same license as the scanner package.
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ja\n"
+
+#: panel_display_module.py:151
+msgid "TERMINAL OUTPUT"
+msgstr "ターミナル出力"
+
+#: panel_display_module.py:157
+msgid "[Scrolled up {}]"
+msgstr "[{}上にスクロール]"
+
+#: panel_display_module.py:189
+msgid "[[ / ]]: Scroll  [\\]: Bottom"
+msgstr "[[ / ]]: スクロール  [\\]: 最下部"
+
+#: panel_display_module.py:198
+msgid "({} more above)"
+msgstr "(上に{}件)"
+
+#: panel_display_module.py:252
+msgid "SCANNER CONTROLS"
+msgstr "スキャナー操作"
+
+#: panel_display_module.py:257
+msgid "[B] Hide"
+msgstr "[B] 非表示"
+
+#: panel_display_module.py:265
+msgid "Angle: {:.1f}deg"
+msgstr "角度: {:.1f}°"
+
+#: panel_display_module.py:270
+msgid "Session: {}"
+msgstr "セッション: {}"
+
+#: panel_display_module.py:275
+msgid "Step: {:.1f}deg"
+msgstr "ステップ: {:.1f}°"
+
+#: panel_display_module.py:280
+msgid "Points: {}"
+msgstr "ポイント: {}"
+
+#: panel_display_module.py:285
+msgid "Mode: {}"
+msgstr "モード: {}"
+
+#: panel_display_module.py:297
+msgid "ROTATION:"
+msgstr "回転:"
+
+#: panel_display_module.py:303
+msgid "[SPACE] Capture point(s)"
+msgstr "[スペース] ポイント取得"
+
+#: panel_display_module.py:304
+msgid "[R] Rotate +{:.1f}deg"
+msgstr "[R] +{:.1f}°回転"
+
+#: panel_display_module.py:305
+msgid "[T] Set angle manually"
+msgstr "[T] 角度を手動設定"
+
+#: panel_display_module.py:306
+msgid "[E] Change step size"
+msgstr "[E] ステップサイズ変更"
+
+#: panel_display_module.py:326
+msgid "MODES:"
+msgstr "モード:"
+
+#: panel_display_module.py:332
+msgid "[1] Laser detection"
+msgstr "[1] レーザー検出"
+
+#: panel_display_module.py:333
+msgid "[2] Curve tracing"
+msgstr "[2] 曲線トレース"
+
+#: panel_display_module.py:334
+msgid "[3] Corner detection"
+msgstr "[3] コーナー検出"
+
+#: panel_display_module.py:335
+msgid "[4] AI Depth (MiDaS)"
+msgstr "[4] AI深度 (MiDaS)"
+
+#: panel_display_module.py:353
+msgid "UTILITIES:"
+msgstr "ユーティリティ:"
+
+#: panel_display_module.py:359
+msgid "[V] Cartoon mode"
+msgstr "[V] カートゥーンモード"
+
+#: panel_display_module.py:360
+msgid "[D] Debug view"
+msgstr "[D] デバッグビュー"
+
+#: panel_display_module.py:361
+msgid "[C] Clear points"
+msgstr "[C] ポイントクリア"
+
+#: panel_display_module.py:362
+msgid "[O] 3D Viewer"
+msgstr "[O] 3Dビューア"
+
+#: panel_display_module.py:363
+msgid "[F] Process photos"
+msgstr "[F] 写真処理"
+
+#: panel_display_module.py:364
+msgid "[T] Toggle capture mode"
+msgstr "[T] キャプチャモード切替"
+
+#: panel_display_module.py:365
+msgid "[S] Save cloud"
+msgstr "[S] クラウド保存"
+
+#: panel_display_module.py:366
+msgid "[M] Mesh method"
+msgstr "[M] メッシュ方法"
+
+#: panel_display_module.py:367
+msgid "[I] Toggle AI panel"
+msgstr "[I] AIパネル切替"
+
+#: panel_display_module.py:368
+msgid "[H] Hide terminal"
+msgstr "[H] ターミナル非表示"
+
+#: panel_display_module.py:369
+msgid "[[ / ]] Scroll terminal"
+msgstr "[[ / ]] ターミナルスクロール"
+
+#: panel_display_module.py:370
+msgid "[Q] Quit"
+msgstr "[Q] 終了"
+
+#: panel_display_module.py:394
+msgid "[+/-] Curve sampling"
+msgstr "[+/-] 曲線サンプリング"
+
+#: panel_display_module.py:395
+msgid "[{/}] Corner count"
+msgstr "[{/}] コーナー数"
+
+#: panel_display_module.py:396
+msgid "[</>] Edge threshold"
+msgstr "[</>] エッジ閾値"
+
+#: panel_display_module.py:414
+msgid "Curve: 1/{}"
+msgstr "曲線: 1/{}"
+
+#: panel_display_module.py:419
+msgid "Corners: {}"
+msgstr "コーナー: {}"
+
+#: panel_display_module.py:424
+msgid "Edges: {}/{}"
+msgstr "エッジ: {}/{}"
+
+#: panel_display_module.py:438
+msgid "CURVE MODE:"
+msgstr "曲線モード:"
+
+#: panel_display_module.py:447
+msgid "Curves: {}"
+msgstr "曲線: {}"
+
+#: panel_display_module.py:451
+msgid "Curve pts: {}"
+msgstr "曲線点: {}"
+
+#: panel_display_module.py:455
+msgid "No curves detected"
+msgstr "曲線が検出されませんでした"
+
+#: panel_display_module.py:497
+msgid "Camera Info"
+msgstr "カメラ情報"
+
+#: panel_display_module.py:502
+msgid "FPS: {:.1f}"
+msgstr "FPS: {:.1f}"
+
+#: panel_display_module.py:510
+msgid "Res: {}"
+msgstr "解像度: {}"
+
+#: panel_display_module.py:515
+msgid "Focal: {}"
+msgstr "焦点距離: {}"
+
+#: panel_display_module.py:521
+msgid "Sharp: {:.2f}"
+msgstr "シャープネス: {:.2f}"
+
+#: panel_display_module.py:528
+msgid "Bright: {:.2f}"
+msgstr "明るさ: {:.2f}"
+
+#: panel_display_module.py:535
+msgid "Status: {}"
+msgstr "ステータス: {}"
+
+#: panel_display_module.py:540
+msgid "Analyzing..."
+msgstr "分析中..."
+
+#: panel_display_module.py:544
+msgid "Press 'i' to hide"
+msgstr "'i'を押して非表示"
+

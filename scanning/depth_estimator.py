@@ -185,7 +185,8 @@ class DepthEstimator:
         return depth_map
     
     def depth_to_point_cloud(self, rgb_image, depth_map, camera_matrix, 
-                            max_depth_m=2.0, min_depth_m=0.2, downsample=1):
+                            max_depth_m=2.0, min_depth_m=0.2, downsample=1,
+                            distance_correction=1.0):
         """
         Convert depth map + RGB to 3D point cloud.
         
@@ -196,6 +197,7 @@ class DepthEstimator:
             max_depth_m: Maximum depth in meters (default: 2.0)
             min_depth_m: Minimum depth in meters (default: 0.2)
             downsample: Downsample factor for performance (1=full, 2=half, 4=quarter)
+            distance_correction: Correction factor to match real-world distances (default: 1.0)
         
         Returns:
             points_3d: (N, 3) array of XYZ coordinates in mm
@@ -223,7 +225,7 @@ class DepthEstimator:
         u, v = np.meshgrid(np.arange(w), np.arange(h))
         
         # Convert to 3D using pinhole camera model
-        z = depth_real * 1000  # Convert to mm
+        z = depth_real * 1000 * distance_correction  # Convert to mm with correction
         x = (u - cx) * z / fx
         y = (v - cy) * z / fy
         
@@ -472,7 +474,7 @@ def test_depth_estimator(image_path=None):
             print("   1. Plug in your camera")
             print("   2. Make sure no other app is using it")
             print("   3. Run with an image instead:")
-            print('      python depth_estimator.py "C:\\Users\\YourName\\Downloads\\image.jpg"')
+            print('      python depth_estimator.py "C:\\Users\\steph\\Downloads\\image.jpg"')
             return
         
         # Configure camera
