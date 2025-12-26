@@ -47,6 +47,24 @@ Infinity Gem is optimized for CPU-based reconstruction, but extremely large poin
 ### ⚠️ Performance Warning
 Infinity Gem supports both CPU and GPU reconstruction. Large point sets (2–3 million points or more) are GPU‑accelerated and will run significantly faster on a capable GPU. CPU processing is still supported but may take several minutes depending on your hardware.
 
+---
+
+### **🚀 Easy Setup (Windows) - RECOMMENDED**
+Run the automated installer:
+```bash
+install.bat
+```
+This will:
+- ✅ Check Python installation
+- ✅ Install dependencies with options (Basic or Full)
+- ✅ Create default calibration
+- ✅ Guide you through first launch
+
+**Setup time: 5-10 minutes**
+
+---
+
+### **Manual Installation**
 
 ### **Quick Install** (Basic laser scanning):
 ```bash
