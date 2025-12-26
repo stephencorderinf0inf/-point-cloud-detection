@@ -2126,6 +2126,9 @@ def scan_3d_points(project_dir=None):
             points_3d = []
             points_colors = []
             
+            # 🎨 Convert BGR to RGB once before loop
+            rgb_image = cv2.cvtColor(undistorted, cv2.COLOR_BGR2RGB)
+            
             downsample = 4  # Process every 4th pixel
             min_depth_m = 0.5
             max_depth_m = 10.0
@@ -2144,12 +2147,12 @@ def scan_3d_points(project_dir=None):
                         
                         points_3d.append([px, py, z])
                         
-                        # Get color from original image
-                        color_bgr = frame[y, x]
-                        color_rgb = [int(color_bgr[2]) / 255.0, 
-                                   int(color_bgr[1]) / 255.0, 
-                                   int(color_bgr[0]) / 255.0]
-                        points_colors.append(color_rgb)
+                        # 🎨 Get color from RGB image
+                        color_rgb = rgb_image[y, x]
+                        color_rgb_normalized = [color_rgb[0] / 255.0,
+                                               color_rgb[1] / 255.0,
+                                               color_rgb[2] / 255.0]
+                        points_colors.append(color_rgb_normalized)
             
             print(f"   ✓ Generated {len(points_3d):,} points")
             
@@ -3320,7 +3323,11 @@ def scan_3d_points(project_dir=None):
                             new_points = []
                             new_colors = []
                             
-                            for y in range(0, h_depth, downsample):
+                            
+                        # 🎨 Convert BGR to RGB once for all pixels
+                        rgb_image = cv2.cvtColor(undistorted, cv2.COLOR_BGR2RGB)
+                        
+                        for y in range(0, h_depth, downsample):
                                 for x in range(0, w_depth, downsample):
                                     depth_value = depth_map[y, x]
                                     
@@ -3340,13 +3347,13 @@ def scan_3d_points(project_dir=None):
                                                    int(color_bgr[1]) / 255.0,
                                                    int(color_bgr[0]) / 255.0]
                                         new_colors.append(color_rgb)
-                            
-                            new_points = np.array(new_points)
-                            new_colors = np.array(new_colors)
-                            
-                            if len(new_points) == 0:
-                                print("⚠️ No points generated - adjust depth range (w/e keys)")
-                                continue
+                        
+                        new_points = np.array(new_points)
+                        new_colors = np.array(new_colors)
+                        
+                        if len(new_points) == 0:
+                            print("⚠️ No points generated - adjust depth range (w/e keys)")
+                            continue
                         
                         points_3d.extend(new_points.tolist())
                         points_colors.extend(new_colors.tolist())
