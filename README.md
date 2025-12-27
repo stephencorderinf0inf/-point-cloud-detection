@@ -291,7 +291,36 @@ Fixed in v2.0 - viewer now positions in top-right corner
 See [LICENSE](LICENSE) file.
 
 ---
+## Trademark Notice
 
+Infinity Gem™ and Infinity Gems™ are unregistered trademarks of the project’s author.  
+All branding, logos, names, and visual identifiers associated with Infinity Gem(s) are the exclusive intellectual property of the author and are not covered by the Apache 2.0 license.
+
+The open-source code may be used under the terms of the Apache License, Version 2.0, but the Infinity Gem(s) name, branding, and associated marks may not be used to imply endorsement, affiliation, or official status without prior written permission.
+---
+## Brand Usage Policy
+
+The Infinity Gem™ / Infinity Gems™ name, branding, and visual identity are protected intellectual property of the project’s author. These elements are NOT licensed under the Apache 2.0 license.
+
+### Permitted Use
+- You may state that your project “uses the Infinity Gem open-source software” as long as it is factual.
+- You may link to the official repository.
+- You may fork the code under the terms of the Apache 2.0 license.
+
+### Restricted Use
+You may NOT:
+- Use the Infinity Gem(s) name or branding in a way that suggests your fork or product is the official version.
+- Use the name or branding in commercial products without written permission.
+- Use the name or branding in a way that causes confusion about origin, affiliation, or endorsement.
+- Create logos, marks, or product names that are confusingly similar.
+
+### Commercial Use
+Commercial use of the Infinity Gem(s) brand, name, or identity requires a separate written agreement with the author.  
+The Apache 2.0 license does **not** grant rights to use the brand in commercial contexts.
+
+### Enforcement
+Unauthorized use of the Infinity Gem(s) brand may result in legal action under applicable trademark and unfair competition laws.
+---
 ## 🤝 Contributing
 
 This is a private repository for development. Contributions welcome after review.
